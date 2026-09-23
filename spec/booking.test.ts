@@ -119,6 +119,18 @@ describe("bookings", () => {
     expect(body).not.toContain(pod);
   });
 
+  it("rejects a booking whose pod name is longer than the form allows", async () => {
+    // The form's `maxlength="80"` on `pod`/`tutor` is a browser-side
+    // courtesy — a client that isn't the form could send anything, and
+    // with no edit or delete an oversized name would sit there forever.
+    const pod = "x".repeat(81);
+    const res = await post("/api/bookings", booking({ pod, roomId: "4" }));
+    expect(res.headers.get("location")).toBe("/?error=too-long&roomId=4");
+
+    const body = await (await fetch(baseUrl)).text();
+    expect(body).not.toContain(pod);
+  });
+
   it("rejects a booking that ends before it starts", async () => {
     const pod = `backwards ${process.hrtime.bigint()}`;
     const res = await post(

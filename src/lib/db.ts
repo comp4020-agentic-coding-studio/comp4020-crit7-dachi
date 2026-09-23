@@ -119,7 +119,10 @@ export type NewBooking = {
 
 export type CreateBookingResult =
   | { ok: true; booking: BookingWithRoom }
-  | { ok: false; reason: "unknown-room" | "bad-format" | "bad-range" | "conflict" };
+  | {
+      ok: false;
+      reason: "unknown-room" | "bad-format" | "too-long" | "bad-range" | "conflict";
+    };
 
 // The one shape every timestamp in this app is allowed to take (see the
 // schema's own comment on why lexicographic string comparison is enough).
@@ -130,11 +133,21 @@ export type CreateBookingResult =
 // there's no edit or delete) a booking nothing can sensibly display.
 const TIME_SHAPE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d$/;
 
+// Matches the form's own `maxlength="80"` on `pod`/`tutor` (see
+// src/pages/index.astro). That attribute is a browser-side courtesy, not a
+// guarantee — the same "recheck everything server-side" reasoning as
+// TIME_SHAPE above applies here too, or a request that isn't the form could
+// store an unbounded string forever, since there's no edit or delete.
+const MAX_TEXT_LENGTH = 80;
+
 export function createBooking(input: NewBooking): CreateBookingResult {
   const room = db.select().from(rooms).where(eq(rooms.id, input.roomId)).get();
   if (!room) return { ok: false, reason: "unknown-room" };
   if (!TIME_SHAPE.test(input.startsAt) || !TIME_SHAPE.test(input.endsAt)) {
     return { ok: false, reason: "bad-format" };
+  }
+  if (input.pod.length > MAX_TEXT_LENGTH || input.tutor.length > MAX_TEXT_LENGTH) {
+    return { ok: false, reason: "too-long" };
   }
   if (!(input.startsAt < input.endsAt)) return { ok: false, reason: "bad-range" };
   if (findConflict(input.roomId, input.startsAt, input.endsAt)) {
