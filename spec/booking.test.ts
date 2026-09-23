@@ -103,6 +103,22 @@ describe("bookings", () => {
     expect(body).not.toContain(second);
   });
 
+  it("rejects a booking whose timestamps aren't in the datetime-local shape", async () => {
+    // The form can only ever produce this shape, but the API route takes any
+    // HTTP request — a client that isn't the form (or a broken one) could
+    // send anything, and the ordering/overlap checks trust the shape without
+    // this guard (see the TIME_SHAPE comment in src/lib/db.ts).
+    const pod = `malformed ${process.hrtime.bigint()}`;
+    const res = await post(
+      "/api/bookings",
+      booking({ pod, roomId: "4", startsAt: "banana", endsAt: "zebra" }),
+    );
+    expect(res.headers.get("location")).toBe("/?error=bad-format&roomId=4");
+
+    const body = await (await fetch(baseUrl)).text();
+    expect(body).not.toContain(pod);
+  });
+
   it("rejects a booking that ends before it starts", async () => {
     const pod = `backwards ${process.hrtime.bigint()}`;
     const res = await post(

@@ -119,11 +119,23 @@ export type NewBooking = {
 
 export type CreateBookingResult =
   | { ok: true; booking: BookingWithRoom }
-  | { ok: false; reason: "unknown-room" | "bad-range" | "conflict" };
+  | { ok: false; reason: "unknown-room" | "bad-format" | "bad-range" | "conflict" };
+
+// The one shape every timestamp in this app is allowed to take (see the
+// schema's own comment on why lexicographic string comparison is enough).
+// The form's `datetime-local` input can only ever produce this, but the API
+// route it posts to takes anyone's HTTP request — reject anything else here
+// before it can reach the ordering/overlap comparisons below, which trust
+// the shape and would otherwise happily store (and forever keep, since
+// there's no edit or delete) a booking nothing can sensibly display.
+const TIME_SHAPE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d$/;
 
 export function createBooking(input: NewBooking): CreateBookingResult {
   const room = db.select().from(rooms).where(eq(rooms.id, input.roomId)).get();
   if (!room) return { ok: false, reason: "unknown-room" };
+  if (!TIME_SHAPE.test(input.startsAt) || !TIME_SHAPE.test(input.endsAt)) {
+    return { ok: false, reason: "bad-format" };
+  }
   if (!(input.startsAt < input.endsAt)) return { ok: false, reason: "bad-range" };
   if (findConflict(input.roomId, input.startsAt, input.endsAt)) {
     return { ok: false, reason: "conflict" };
