@@ -1420,3 +1420,63 @@ deliverable built on this same Vite/TS static template:
   something about deploy topology rather than application logic: check it
   against `flyctl status`/`scale show`, don't just read the comment and
   move on.
+- **Verifying no EventEmitter/SSE listener leak needs an abrupt disconnect,
+  not just a graceful one --- a `kill -9` of the client process, not only a
+  `curl -m <n>` timeout.** On `comp4020-crit7-dachi`, checking whether
+  `src/pages/api/events.ts`'s `cancel()` (which does `bus.off(...)`) really
+  fires on every disconnect path needed temporary `console.error`
+  instrumentation of `bus.listenerCount("booking")` in `start`/`cancel`
+  (reverted before committing, confirmed via `git status`/`git diff` never
+  landed), a locally-built-and-run server, and three separate disconnect
+  shapes: a graceful `curl -m 1` timeout, an abrupt `kill -9` of the curl
+  process mid-stream, and three concurrent connections with one killed to
+  confirm independent tracking. All three correctly dropped the listener
+  count to the right value --- Node's http server plus the `@astrojs/node`
+  adapter do wire a real socket close (even a forced one) through to the
+  `ReadableStream`'s `cancel()`. No bug, a confirmed pass; the general
+  lesson is that a *graceful* disconnect test alone doesn't rule out a leak
+  from connections that die badly (a mobile client losing signal, a tab
+  killed by the OS), so include a forced-kill client in this specific check
+  before trusting a graceful-only result.
+- **The "what could a request that isn't the form send instead" boundary-
+  validation question (already good for two real bugs on this project ---
+  timestamp shape, pod/tutor length) found a third: a regex checking digit
+  *shape* is not the same as checking calendar *validity*.**
+  `TIME_SHAPE`'s pattern let day 30 match every month, so
+  `2031-02-30T09:00` --- a date the `datetime-local` picker itself can
+  never produce --- passed validation and was stored forever (no
+  edit/delete). Fixed with an explicit day-vs-days-in-month check
+  (leap-year aware), deliberately not via `Date` parsing, since parsing
+  would drag a timezone into a file whose whole design (lexicographic
+  string comparison everywhere) depends on staying timezone-less. Proved
+  the gap first with a test that failed against the un-fixed source, then
+  confirmed the fix. General lesson: for any hand-written shape regex
+  standing in for "this is a valid X," ask separately whether it also
+  encodes every domain constraint X actually has (here: shape said yes,
+  calendar validity said no) --- the same regex-passes-but-value-is-still-
+  wrong gap this file's `oklch`/`light-dark` contrast entries describe for
+  colour, generalised to dates.
+- **Checked, and ruled out, two further candidates in the same boundary-
+  validation family before concluding it was exhausted: `roomId` type
+  coercion and a `findConflict`-then-insert TOCTOU race.** `Number(form.get
+  ("roomId"))` looked underchecked (no explicit integer validation beyond
+  falsiness and the room-existence lookup) --- tried `1.5`, `1e2`,
+  `Infinity`, `0`, `-1`, `abc` against a locally-running instance directly
+  with `curl`; every one came back `unknown-room` or `missing`, never a
+  false match, because Drizzle/better-sqlite3's `eq()` against an integer
+  column doesn't loosely coerce. Separately, fired ten truly concurrent
+  overlapping POSTs for the same room/time window (`&` backgrounded curls
+  followed by `wait`) to check whether the conflict-check-then-insert in
+  `createBooking` (two separate synchronous statements, no explicit SQL
+  transaction) could race --- exactly one succeeded, the other nine got
+  `conflict`. Reasoned why before confirming empirically: better-sqlite3 is
+  synchronous and `createBooking` has no `await` between the check and the
+  insert, so on Node's single-threaded event loop the whole function body
+  runs as one uninterruptible unit regardless of how many requests arrive
+  at once --- no explicit transaction needed for this specific race,
+  though this reasoning would break if the function ever gained a real
+  `await` between the two statements. General lesson: a TOCTOU-shaped race
+  in a Node app backed by a synchronous DB driver is worth checking with
+  real concurrent requests before assuming it exists just because the code
+  looks like two separate statements --- the language's own concurrency
+  model can already close the gap.
