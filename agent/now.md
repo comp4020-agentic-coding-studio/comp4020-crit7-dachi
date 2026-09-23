@@ -1,58 +1,51 @@
-# Hand-off --- crit 7 (Crit Rooms / ANU system), first run of this crit
+# Hand-off --- crit 7 (Crit Rooms / ANU system), second run
 
 ## State
 
-`comp4020-crit7-dachi` arrived with substantial work already done (not by
-this run): schema (rooms/bookings), the booking API, SSE live feed, the form
-+ schedule page, README and CLAUDE.md rewritten for the domain, and the
-starter's guestbook test replaced with `spec/booking.test.ts`. 161.5h to
-cutoff at prompt time --- well inside the "plan/build/deepen" band, not a
-finishing run.
+155.5h to cutoff at prompt time --- still well inside "plan/build/deepen,"
+not a finishing run. Continued from the first run's hand-off, which had
+flagged two specific untried sensor families.
 
 This run:
 
-1. Ran `pnpm check` (typecheck + build + 30 tests, all green) and a full live
-   walkthrough with `agent-browser` against the local build: real form
-   submission → persists on reload, a second "tab" (a plain `curl` POST)
-   shows up live in the first tab's SSE feed, an overlapping booking through
-   the real form gets refused with the right on-page error, full keyboard
-   tab order reaches every field and the submit button (a `datetime-local`
-   input's internal segments tab within the element before moving on --- not
-   a bug), 320px reflow clean, 0 a11y violations including the untested
-   error-banner and `.past`-row states.
-2. Deployed to Fly for the first time (`flyctl status` showed the app
-   existed but had no image yet) --- `flyctl deploy --remote-only --ha=false
-   -a comp4020-crit7-dachi`. Live URL confirmed serving 200, and the core
-   reload-persists-a-booking flow re-verified against the actual deployed
-   URL, not just the local build.
-3. Found and fixed a real bug: `createBooking` revalidates room id and
-   start/end ordering server-side (per this project's own `CLAUDE.md`), but
-   never checked the timestamp *shape* before the lexicographic comparisons
-   that ordering/overlap logic depends on. A direct POST (not through the
-   form) with `startsAt=banana&endsAt=zebra` was silently accepted and
-   persisted forever, since the app has no edit/delete. Confirmed reachable
-   with a raw `curl` POST before fixing. Fix: a regex shape check
-   (`TIME_SHAPE` in `src/lib/db.ts`) rejecting anything that isn't
-   `YYYY-MM-DDTHH:mm` with in-range components, a new `bad-format` result/
-   error message, and a regression test in `spec/booking.test.ts`.
-   Committed (`cd0c793`), pushed, redeployed, and re-confirmed live that the
-   same malformed POST now redirects to `?error=bad-format` instead of
-   corrupting the schedule.
-4. `PROCESS.md` is still the unfilled template and `reflections/` is empty
-   --- correct for this point in the week; doctrine's finishing steps are
-   for the last run, not this one.
+1. Confirmed the SSE bus's single-process assumption
+   (`src/lib/events.ts`'s comment: "only works because the app runs on
+   exactly one machine") is actually enforced, not just asserted: `flyctl
+   status`/`flyctl scale show -a comp4020-crit7-dachi` both show exactly one
+   machine, one VM group, count 1 --- consistent with the mounted volume
+   (`fly.toml`'s `[mounts]`) constraining placement to a single machine
+   anyway. No bug, no fix needed; a confirmed pass, not a null result.
+2. Found and fixed a real boundary-validation gap in the same shape as the
+   prior run's timestamp fix: `createBooking` (`src/lib/db.ts`) never
+   bounded `pod`/`tutor` length server-side, relying entirely on the form's
+   `maxlength="80"` --- a browser-side courtesy a direct POST can bypass
+   the same way `startsAt=banana` bypassed the timestamp shape check.
+   Confirmed reachable with a raw `curl` POST of an 81-char pod name before
+   fixing (stored unboundedly, no edit/delete to ever clear it). Fix: a
+   `MAX_TEXT_LENGTH = 80` check in `createBooking`, a new `too-long` result/
+   error message, a regression test in `spec/booking.test.ts`. Committed
+   (`e6f1fb2`), redeployed, and re-confirmed live against the actual
+   `https://comp4020-crit7-dachi.fly.dev/` URL (not just the local build)
+   that the malformed POST now redirects to `?error=too-long` and the page
+   renders the right message.
+3. `PROCESS.md` is still the unfilled template, `reflections/` still empty
+   --- correct for this point in the week.
 
 ## Next action
 
-Keep deepening while cutoff allows. Sensor families not yet tried on this
-project: a logic-symmetry pass over `db.ts`/the API route for other
-boundary-validation gaps in the same shape as the timestamp one (e.g. is
-`pod`/`tutor` length actually bounded server-side, not just via the form's
-`maxlength`, which is client-only and trivially bypassed the same way the
-timestamp shape was); a check of whether the SSE bus's single-process
-assumption (`src/lib/events.ts`, explicit comment: "only works because the
-app runs on exactly one machine") is actually guaranteed by `fly.toml`'s
-`min_machines_running = 0` / single-machine config, not just asserted in a
-comment. Don't re-run the same browser sweep again without a new question ---
-this run's a11y/keyboard/resize/reload/SSE checks all came back clean once
-already.
+Both sensor families the first run's hand-off named are now closed out (one
+confirmed clean, one found and fixed a real bug). Sensor families not yet
+tried on this project: re-read the SSE/events route (`src/pages/api/
+events.ts`, not yet read closely this run) for its own asymmetry --- does a
+client disconnect actually unregister its listener from `bus`, or could a
+long-lived series of dropped SSE connections leak listeners over the app's
+lifetime (`bus.setMaxListeners(0)` in events.ts suppresses the warning that
+would normally surface this, which is itself worth checking isn't masking a
+real leak). Also not yet tried: a full keyboard/a11y/resize sweep against
+the *redeployed* live URL specifically (last run's sweep was against the
+local build before the first deploy) --- cheap to re-run once, since the
+app has had two commits since. Don't re-run the same checks a third time
+without a new question once these two are exhausted; watch fraction of the
+168h window elapsed (see MEMORY.md's crit-4/crit-5 calibration notes) before
+deciding whether to keep inventing new sensors or start drafting PROCESS.md/
+reflections/crit-7.md early.

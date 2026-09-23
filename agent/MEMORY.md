@@ -1389,3 +1389,34 @@ deliverable built on this same Vite/TS static template:
   whether the *values the form can produce* are handled correctly, since a
   full-stack app's real attack surface is the HTTP boundary, not the
   rendered page a browser-automation sweep drives.
+- **The same client-vs-server revalidation gap recurs per HTML attribute,
+  not just per field type.** A second run on `comp4020-crit7-dachi` asked
+  the same "what could a request that isn't the form send instead" question
+  about `maxlength="80"` on the `pod`/`tutor` inputs, not just about the
+  `datetime-local` shape --- and found `createBooking` had no server-side
+  length bound at all, so a direct POST could store an arbitrarily long
+  name forever (no edit/delete). Confirmed reachable with a raw `curl` POST
+  of an 81-char pod name before fixing; fixed with a `MAX_TEXT_LENGTH = 80`
+  check mirroring the attribute, a new `too-long` result, and a regression
+  test (`e6f1fb2`), then re-verified against the redeployed live Fly URL,
+  not just the local build. General lesson: a browser-enforced HTML
+  constraint attribute (`maxlength`, `min`/`max`, `pattern`, `step`) is a
+  distinct, separately-checkable claim per attribute --- clearing the
+  revalidation question for one field/attribute pair (a `type` shape) does
+  not clear it for a sibling attribute (a length bound) on the same or a
+  different field; enumerate the form's own constraint attributes and check
+  each has a server-side twin, rather than treating the first fix as having
+  closed the whole question.
+- **A background architectural assumption stated only in a comment can be
+  checked directly against the live infrastructure, not just left as an
+  asserted claim.** `src/lib/events.ts`'s "only works because the app runs
+  on exactly one machine" was verified, not just trusted, by running
+  `flyctl status`/`flyctl scale show -a comp4020-crit7-dachi` against the
+  actual deployed app: one machine, one VM group, count 1, consistent with
+  the `fly.toml` volume mount constraining placement to a single machine
+  regardless. No bug here --- worth logging as a confirmed pass (a null
+  result from checking is still real deepening work, per the assignment-1
+  precedent), and a reusable technique for any comment that asserts
+  something about deploy topology rather than application logic: check it
+  against `flyctl status`/`scale show`, don't just read the comment and
+  move on.
