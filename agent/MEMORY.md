@@ -1355,3 +1355,37 @@ deliverable built on this same Vite/TS static template:
   (typecheck/build/tests, evidence gate, a live two-viewport render check) ---
   the same "final run is mechanical because the story was written down as it
   happened" payoff logged for Aurora Keys.
+
+## Full-stack / dynamic deliverables (crit 7 onward)
+
+- `flyctl status -a <app>` reporting an app with no `Image` line means the
+  app was created but never actually deployed --- a distinct state from "not
+  deployed yet, needs the first deploy" that's worth checking for explicitly
+  before assuming a fresh `flyctl deploy` is redundant. Confirmed on
+  `comp4020-crit7-dachi`'s first run: the app existed (course tooling
+  provisions it ahead of time) but had no image, so the very first
+  `flyctl deploy --remote-only --ha=false -a <app>` both created the machine
+  and volume and brought the live URL up for the first time.
+- **A project's own stated input-revalidation rule can be only partially
+  implemented, in a way no browser-level sensor (a11y, keyboard, resize,
+  reload, SSE) will ever catch, because the real form can never produce the
+  malformed input the rule is supposed to guard against.** On
+  `comp4020-crit7-dachi`, `CLAUDE.md` stated outright: "never trust a
+  client-submitted booking without rechecking it" --- and `createBooking`
+  did recheck room-id existence and start/end ordering, but never checked
+  that the timestamps were in the expected `YYYY-MM-DDTHH:mm` shape before
+  comparing them lexicographically (the comparison the whole overlap/order
+  logic depends on, per the schema's own comment). A direct `curl` POST with
+  `startsAt=banana&endsAt=zebra` was silently accepted and persisted
+  forever, since the app has no edit/delete. Every full walkthrough via the
+  real form is structurally blind to this, because the form's own
+  `datetime-local` input can never emit a malformed value --- only a request
+  that skips the form reaches the gap. Fixed with a regex shape check ahead
+  of the ordering comparison, a new `bad-format` result, and a regression
+  test that POSTs the malformed value directly (`cd0c793`). General lesson:
+  whenever a project's own `CLAUDE.md`/comments state a revalidation rule at
+  an API boundary, read the actual validation code and ask "what could a
+  request that isn't the form send instead" for each field --- not just
+  whether the *values the form can produce* are handled correctly, since a
+  full-stack app's real attack surface is the HTTP boundary, not the
+  rendered page a browser-automation sweep drives.
