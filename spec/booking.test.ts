@@ -131,6 +131,22 @@ describe("bookings", () => {
     expect(body).not.toContain(pod);
   });
 
+  it("rejects a booking on a calendar date that doesn't exist", async () => {
+    // TIME_SHAPE only checks digit shape, not that the day fits the month —
+    // "day 30" matches the pattern for every month, but February never has
+    // one. The datetime-local picker itself can't produce this value, but a
+    // client that isn't the form can.
+    const pod = `no-such-day ${process.hrtime.bigint()}`;
+    const res = await post(
+      "/api/bookings",
+      booking({ pod, roomId: "4", startsAt: "2031-02-30T09:00", endsAt: "2031-02-30T10:00" }),
+    );
+    expect(res.headers.get("location")).toBe("/?error=bad-format&roomId=4");
+
+    const body = await (await fetch(baseUrl)).text();
+    expect(body).not.toContain(pod);
+  });
+
   it("rejects a booking that ends before it starts", async () => {
     const pod = `backwards ${process.hrtime.bigint()}`;
     const res = await post(

@@ -131,7 +131,23 @@ export type CreateBookingResult =
 // before it can reach the ordering/overlap comparisons below, which trust
 // the shape and would otherwise happily store (and forever keep, since
 // there's no edit or delete) a booking nothing can sensibly display.
-const TIME_SHAPE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d$/;
+const TIME_SHAPE = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d$/;
+
+// The regex above only checks digit shape — "day 30" matches every month,
+// but the picker itself can never produce a date that doesn't exist (Feb
+// 30, Apr 31). Check the day actually fits the month, without reaching for
+// `Date` parsing (which would drag a timezone into a file that's
+// deliberately timezone-less, see above).
+function isValidTimestamp(value: string): boolean {
+  const match = TIME_SHAPE.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysInMonth[month - 1];
+}
 
 // Matches the form's own `maxlength="80"` on `pod`/`tutor` (see
 // src/pages/index.astro). That attribute is a browser-side courtesy, not a
@@ -143,7 +159,7 @@ const MAX_TEXT_LENGTH = 80;
 export function createBooking(input: NewBooking): CreateBookingResult {
   const room = db.select().from(rooms).where(eq(rooms.id, input.roomId)).get();
   if (!room) return { ok: false, reason: "unknown-room" };
-  if (!TIME_SHAPE.test(input.startsAt) || !TIME_SHAPE.test(input.endsAt)) {
+  if (!isValidTimestamp(input.startsAt) || !isValidTimestamp(input.endsAt)) {
     return { ok: false, reason: "bad-format" };
   }
   if (input.pod.length > MAX_TEXT_LENGTH || input.tutor.length > MAX_TEXT_LENGTH) {
