@@ -1,10 +1,10 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
-import { desc } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { type Message, messages } from "./schema";
+import { type Booking, bookings, type Room, rooms } from "./schema";
 
 // One SQLite file is the app's whole persistent state. In production
 // fly.toml points DATABASE_PATH at the machine's volume (/data), which is
@@ -24,12 +24,122 @@ export const db = drizzle(client);
 // commit the migration it writes to drizzle/.
 migrate(db, { migrationsFolder: "./drizzle" });
 
-export type { Message };
+// The rooms are a fixed, seeded list, not something the app lets anyone add —
+// the annoying part of the real system is who's booked into one, not which
+// rooms exist. Seed once, on a fresh database (a first boot, or a spec run's
+// throwaway one); a populated table means a previous boot already did this.
+const SEED_ROOMS = [
+  "Hanna Neumann — Seminar Room",
+  "CSIT — N101",
+  "Marie Reay Teaching Centre — Room 3",
+  "Birch Building — Crit Studio",
+];
 
-export function listMessages(): Message[] {
-  return db.select().from(messages).orderBy(desc(messages.id)).limit(50).all();
+if (db.select().from(rooms).limit(1).all().length === 0) {
+  db.insert(rooms)
+    .values(SEED_ROOMS.map((name) => ({ name })))
+    .run();
 }
 
-export function addMessage(body: string): Message {
-  return db.insert(messages).values({ body }).returning().get();
+export type { Booking, Room };
+
+export function listRooms(): Room[] {
+  return db.select().from(rooms).all();
+}
+
+export type BookingWithRoom = Booking & { roomName: string };
+
+export function listBookings(): BookingWithRoom[] {
+  return db
+    .select({
+      id: bookings.id,
+      roomId: bookings.roomId,
+      pod: bookings.pod,
+      tutor: bookings.tutor,
+      startsAt: bookings.startsAt,
+      endsAt: bookings.endsAt,
+      createdAt: bookings.createdAt,
+      roomName: rooms.name,
+    })
+    .from(bookings)
+    .innerJoin(rooms, eq(bookings.roomId, rooms.id))
+    .orderBy(bookings.startsAt)
+    .all();
+}
+
+// Every timestamp in this app is a `datetime-local` string (`YYYY-MM-DDTHH:mm`,
+// no timezone) — every booking is for a room on this campus, so there's
+// exactly one timezone in play, and lexicographic string comparison is
+// enough to order and overlap-check them with no date parsing anywhere in
+// the query layer. `nowLocal` produces "now" in that same shape, in the
+// campus's own timezone regardless of what timezone the server process
+// itself runs in (Fly's machines run in UTC).
+export function nowLocal(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Canberra",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+/** The existing booking a new one for the same room would collide with, if
+ *  any — two half-open windows [startsAt, endsAt) overlap exactly when each
+ *  starts before the other ends. */
+export function findConflict(
+  roomId: number,
+  startsAt: string,
+  endsAt: string,
+): Booking | undefined {
+  return db
+    .select()
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.roomId, roomId),
+        lt(bookings.startsAt, endsAt),
+        gt(bookings.endsAt, startsAt),
+      ),
+    )
+    .get();
+}
+
+export type NewBooking = {
+  roomId: number;
+  pod: string;
+  tutor: string;
+  startsAt: string;
+  endsAt: string;
+};
+
+export type CreateBookingResult =
+  | { ok: true; booking: BookingWithRoom }
+  | { ok: false; reason: "unknown-room" | "bad-range" | "conflict" };
+
+export function createBooking(input: NewBooking): CreateBookingResult {
+  const room = db.select().from(rooms).where(eq(rooms.id, input.roomId)).get();
+  if (!room) return { ok: false, reason: "unknown-room" };
+  if (!(input.startsAt < input.endsAt)) return { ok: false, reason: "bad-range" };
+  if (findConflict(input.roomId, input.startsAt, input.endsAt)) {
+    return { ok: false, reason: "conflict" };
+  }
+
+  const booking = db
+    .insert(bookings)
+    .values({
+      roomId: input.roomId,
+      pod: input.pod,
+      tutor: input.tutor || null,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    })
+    .returning()
+    .get();
+
+  return { ok: true, booking: { ...booking, roomName: room.name } };
 }

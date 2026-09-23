@@ -7,12 +7,36 @@ import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
 // boots (see src/lib/db.ts), locally and deployed. Never edit the database
 // by hand: state on the deployed volume outlives every deploy, and the
 // migration trail is what keeps old state and new code compatible.
-export const messages = sqliteTable("messages", {
+
+// A fixed, seeded set of rooms this course actually uses for crits. Not
+// user-editable: the annoying part of the real system isn't "which rooms
+// exist," it's "who's in one right now" — see bookings below.
+export const rooms = sqliteTable("rooms", {
   id: int().primaryKey({ autoIncrement: true }),
-  body: text().notNull(),
+  name: text().notNull(),
+});
+
+// One booking is one pod, in one room, for one time window. The whole point
+// of this table over a shared spreadsheet: `starts_at`/`ends_at` let the app
+// itself refuse a second booking that overlaps an existing one in the same
+// room (see findConflict in db.ts), instead of two pods finding out in
+// person. Times are stored as `datetime-local` strings (`YYYY-MM-DDTHH:mm`,
+// no timezone) — every user is on the same campus, so lexicographic string
+// comparison is enough to order and to detect overlap, no date parsing
+// needed anywhere in the query layer.
+export const bookings = sqliteTable("bookings", {
+  id: int().primaryKey({ autoIncrement: true }),
+  roomId: int("room_id")
+    .notNull()
+    .references(() => rooms.id),
+  pod: text().notNull(),
+  tutor: text(),
+  startsAt: text("starts_at").notNull(),
+  endsAt: text("ends_at").notNull(),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
 });
 
-export type Message = typeof messages.$inferSelect;
+export type Room = typeof rooms.$inferSelect;
+export type Booking = typeof bookings.$inferSelect;
