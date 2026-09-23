@@ -1,8 +1,21 @@
 ---
-import { listMessages } from "../lib/db";
+import { listBookings, listRooms, nowLocal } from "../lib/db";
 import "../styles.css";
 
-const messages = listMessages();
+const rooms = listRooms();
+const bookings = listBookings();
+
+const ERROR_TEXT: Record<string, string> = {
+  missing: "Every field is required.",
+  "unknown-room": "That room doesn't exist.",
+  "bad-range": "The booking has to end after it starts.",
+  conflict: "That room is already booked for part of that time.",
+};
+const errorCode = Astro.url.searchParams.get("error");
+const errorRoomId = Astro.url.searchParams.get("roomId");
+const errorRoomName = errorRoomId
+  ? rooms.find((room) => room.id === Number(errorRoomId))?.name
+  : undefined;
 ---
 
 <!doctype html>
@@ -10,43 +23,105 @@ const messages = listMessages();
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>COMP4020 prototype</title>
+    <title>Crit Rooms</title>
   </head>
   <body>
     <nav aria-label="site">
-      <a href="/">Guestbook</a>
+      <a href="/">Crit Rooms</a>
       <a href="/readme/">About</a>
     </nav>
     <main>
-      <h1>Guestbook</h1>
+      <h1>Crit Rooms</h1>
       <p>
-        A minimal full-stack starter: messages live in SQLite on the machine's
-        volume (state survives a reload and a redeploy), and new messages
-        appear in every open tab over a server-sent-events stream — open this
-        page twice and sign it in one. Replace all of this with your own
-        prototype.
+        Book one of the course's crit rooms for a pod's session. Two pods can't
+        book the same room for overlapping times — the form below checks
+        before it accepts anything, so nobody finds out in person.
       </p>
-      <form method="post" action="/api/messages">
-        <label for="body">Leave a message</label>
-        <input id="body" name="body" required maxlength="500" />
-        <button>Sign</button>
+
+      {
+        errorCode && (
+          <p role="alert" class="error">
+            {ERROR_TEXT[errorCode] ?? "That booking couldn't be made."}
+            {errorCode === "conflict" && errorRoomName && ` (${errorRoomName})`}
+          </p>
+        )
+      }
+
+      <form method="post" action="/api/bookings">
+        <div class="field">
+          <label for="roomId">Room</label>
+          <select id="roomId" name="roomId" required>
+            {rooms.map((room) => <option value={room.id}>{room.name}</option>)}
+          </select>
+        </div>
+        <div class="field">
+          <label for="pod">Pod</label>
+          <input id="pod" name="pod" required maxlength="80" placeholder="e.g. Dachi" />
+        </div>
+        <div class="field">
+          <label for="tutor">Tutor</label>
+          <input id="tutor" name="tutor" maxlength="80" placeholder="optional" />
+        </div>
+        <div class="field">
+          <label for="startsAt">Starts</label>
+          <input id="startsAt" name="startsAt" type="datetime-local" required />
+        </div>
+        <div class="field">
+          <label for="endsAt">Ends</label>
+          <input id="endsAt" name="endsAt" type="datetime-local" required />
+        </div>
+        <button>Book the room</button>
       </form>
-      <ul id="messages">
-        {messages.map((message) => <li>{message.body}</li>)}
-      </ul>
+
+      <h2>Schedule</h2>
+      {
+        bookings.length === 0 ? (
+          <p>No bookings yet.</p>
+        ) : (
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Room</th>
+                  <th scope="col">Pod</th>
+                  <th scope="col">Tutor</th>
+                  <th scope="col">Starts</th>
+                  <th scope="col">Ends</th>
+                </tr>
+              </thead>
+              <tbody id="schedule">
+                {bookings.map((booking) => (
+                  <tr class={booking.endsAt < nowLocal() ? "past" : undefined}>
+                    <td>{booking.roomName}</td>
+                    <td>{booking.pod}</td>
+                    <td>{booking.tutor ?? "—"}</td>
+                    <td>{booking.startsAt.replace("T", " ")}</td>
+                    <td>{booking.endsAt.replace("T", " ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+
+      <h2 id="live-heading">Just booked</h2>
+      <p>New bookings from other tabs appear here as they happen.</p>
+      <ul id="live" aria-labelledby="live-heading"></ul>
     </main>
     <script>
-      // The live half of the demo: subscribe to the SSE stream and prepend
-      // messages as they arrive. The form itself needs none of this — its
-      // POST + redirect re-renders the submitting tab from SQLite; this
-      // stream is how every other tab finds out.
-      const list = document.querySelector("#messages");
+      // The live half of the app: subscribe to the SSE stream and note new
+      // bookings from other tabs as they happen. The form itself needs none
+      // of this — its POST + redirect re-renders the submitting tab's own
+      // schedule from SQLite; this stream is how every other tab finds out,
+      // without re-sorting the schedule table client-side.
+      const live = document.querySelector("#live");
       const source = new EventSource("/api/events");
       source.addEventListener("message", (event) => {
-        const message = JSON.parse(event.data);
+        const booking = JSON.parse(event.data);
         const item = document.createElement("li");
-        item.textContent = message.body;
-        list?.prepend(item);
+        item.textContent = `${booking.roomName}: ${booking.pod}, ${booking.startsAt.replace("T", " ")}–${booking.endsAt.replace("T", " ")}`;
+        live?.prepend(item);
       });
     </script>
   </body>

@@ -11,6 +11,13 @@ main {
   margin: 0 auto;
 }
 
+nav {
+  display: flex;
+  gap: 1rem;
+  max-width: 40rem;
+  margin: 0 auto 1.5rem;
+}
+
 a {
   color: #0b5fff;
 }
@@ -19,13 +26,23 @@ form {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  align-items: center;
+  align-items: end;
   margin-block: 1.5rem;
 }
 
-input {
-  flex: 1;
-  min-width: 12rem;
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+input,
+select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   padding: 0.4rem 0.6rem;
   font: inherit;
 }
@@ -35,6 +52,35 @@ button {
   font: inherit;
 }
 
-#messages {
+.error {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #a40e26;
+  border-radius: 0.3rem;
+  color: #a40e26;
+  background: #fdecee;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin-block: 1rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #ddd;
+}
+
+tr.past {
+  color: #595959;
+}
+
+#live {
   padding-inline-start: 1.2rem;
 }
