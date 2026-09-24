@@ -80,7 +80,7 @@ const errorRoomName = errorRoomId
         bookings.length === 0 ? (
           <p>No bookings yet.</p>
         ) : (
-          <div class="table-scroll">
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Schedule">
             <table>
               <thead>
                 <tr>
