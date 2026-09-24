@@ -50,3 +50,19 @@ saying so. Fixed by appending literal " (past)" text next to the end time
 already implied by other visible text, check whether removing the CSS rule
 would leave a sighted user with no way to tell, before trusting a clean axe
 result to mean the row is fine.
+
+A second axe-invisible gap, same shape (a real WCAG failure with no rule
+that catches it): `.table-scroll`'s `overflow-x: auto` on the schedule table
+had no `tabindex`, so once the table is wider than the viewport (any real
+phone width, once a room name is long enough) there was no way for a
+keyboard-only user to even reach the scrollable region, let alone scroll
+it --- the table itself has no focusable cells, so it was a dead stop
+between the submit button and the page bottom. Confirmed live: a real
+`Tab` walkthrough at 390px skipped straight past it, and `scrollWidth >
+clientWidth` was true the whole time. Fixed with `tabindex="0" role="region"
+aria-label="Schedule"` on the wrapping div, re-confirmed a real `Tab` reaches
+it and `ArrowRight` then moves `scrollLeft`. General lesson for any
+`overflow: auto` wrapper around non-interactive content (a table, a wide
+diagram): check whether the wrapper itself is keyboard-focusable, not just
+whether axe is clean --- axe has no rule for "can a keyboard reach this
+scroll container" either.
