@@ -36,3 +36,17 @@ broadcast, and conflict rejection. Extend it when a new mechanic needs a
 guarantee, rather than checking it by hand and moving on. `spec/invariants.
 test.ts` and `spec/readme.test.ts` are the starter's, unchanged --- keep them
 green.
+
+## Accessibility
+
+`spec/invariants.test.ts`'s axe pass runs in jsdom, and even a real-browser
+`agent-browser a11y` sweep only catches automatable rules. Neither can flag
+"use of color" (WCAG 1.4.1) --- axe has no rule for it, since judging whether
+a colour is the *only* signal for some state needs reading the markup, not
+just measuring it. The schedule table's `tr.past` class was exactly that gap:
+a finished booking was dimmed by colour alone, with nothing else in the row
+saying so. Fixed by appending literal " (past)" text next to the end time
+(`src/pages/index.astro`) --- when a class name encodes state that isn't
+already implied by other visible text, check whether removing the CSS rule
+would leave a sighted user with no way to tell, before trusting a clean axe
+result to mean the row is fine.
