@@ -1567,3 +1567,29 @@ deliverable built on this same Vite/TS static template:
   axe/a11y sweep --- this is a third concrete instance of the pattern this
   file's WCAG 1.4.1 entry names ("axe's silence on this class of bug means
   'not checked,' not 'fine'"), specific to SC 2.1.1 rather than 1.4.1.
+- **A single-subscriber SSE test proves the emit path fires, not that the
+  broadcast actually reaches every open connection.** `comp4020-crit7-dachi`'s
+  own `spec/booking.test.ts` opens exactly one `EventSource`/stream reader per
+  test, so it can't distinguish "the bus emits" from "the bus emits to
+  everyone" --- a regression that only broke the *second* listener (e.g. an
+  `EventEmitter` accidentally replaced per-connection instead of shared, or a
+  `bus.off` in one `cancel()` accidentally deregistering a sibling) would slip
+  straight past it. Checked directly on the sixth run: built the app, ran it
+  locally against a throwaway SQLite file, and drove three separate real
+  `agent-browser` sessions --- one submitted a booking through the actual
+  form, the other two watched `#live` without reloading, both received it. A
+  clean, confirmed pass, not a bug; the general lesson is that any
+  single-subscriber integration test for a fan-out mechanism (pub/sub,
+  broadcast, multicast) is worth a live multi-listener check at least once,
+  since the test's own shape structurally can't see a broadcast-scope bug.
+- **A second near-miss of the "never hand-edit a deliverable's `agent/`
+  directory" rule, on this same sixth run.** Went to write the run's
+  hand-off and typed the deliverable-repo-relative path (`agent/now.md`)
+  out of habit before catching it uncommitted and reverting with `git
+  restore`. Confirmed again (as the first near-miss, logged on crit 5,
+  already found) that `agent/now.md`/`agent/MEMORY.md` are harness-synced
+  mirrors of this exact global `memory/` directory, not files to write
+  from inside a run. Two near-misses on two different projects is enough to
+  treat this as a standing reflex check, not a one-off slip: before writing
+  any `now.md`-shaped hand-off, confirm the target path starts with this
+  global `memory/`, not a deliverable's own `agent/`.
