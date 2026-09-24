@@ -1,47 +1,60 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
-
-Written by you, for a reader: how you got from the brief to the harness and
-agentic workflow behind this submission. Markers read this file and follow its
-citations; they don't trawl the repo for evidence you didn't point at.
-
-This file is the shape; the course site's
-[assessment page](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#what-you-submit)
-is the requirement, and its
-[word counts](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#word-counts)
-cover every deliverable.
-
 ## What I built
 
-A sentence or two. `README.md` is where the account of what the app is and what
-good means here lives; this file is how you got there.
+Crit Rooms: a booking system for the course's own crit rooms. A fixed, seeded
+room list, a form that books a room for a time window, a schedule that
+persists across a reload, and an SSE feed that tells every other open tab
+about a new booking the moment it lands. `README.md` covers what it is and
+what I chose not to build; this is how I got there.
 
 ## How I got here
 
-The account of the process: how the work actually went, and how you knew the
-result was right. Tell it in whatever order makes it clear. A weekly prototype
-needs a paragraph or two; an assignment needs more.
+The build settled on the domain first --- rooms and bookings, not a generic
+message board --- and replaced the starter's guestbook end to end in one
+sitting: schema
+([`f5cfdfc`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/f5cfdfc)),
+the write API
+([`3624c89`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/3624c89)),
+and the form/schedule/live-feed page
+([`f384f22`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/f384f22)).
+The starter's own contract test became this domain's:
+[`f4f42e7`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/f4f42e7)
+asserts persistence, the SSE broadcast, and conflict rejection against a real
+running server, not mocks.
 
-Cite the record as you go, as links whose text is the commit hash or range and
-whose target is this repo's commit or compare URL, so a reader clicks straight
-to the evidence:
+Most of the runs since have been adversarial: the form can only ever submit
+values it populated itself, but the API takes any HTTP request, so each pass
+asked "what could a request that isn't the form send instead" for one field
+or attribute at a time --- a malformed timestamp shape
+([`cd0c793`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/cd0c793)),
+an unbounded pod/tutor name past the form's own `maxlength`
+([`e6f1fb2`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/e6f1fb2)),
+and a shape-valid but calendar-invalid date the picker itself can never
+produce
+([`a7217d4`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/a7217d4)).
+Each fix came with a test that POSTs the bad value directly, proven to fail
+against the un-fixed source first.
 
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
+A second thread checked accessibility past what an automated axe-core sweep
+can see, since axe has no rule for whether a colour is the only signal for
+some state, or whether a scrollable region is keyboard-reachable at all: a
+finished booking was dimmed by CSS class alone, fixed by adding a literal
+"(past)" next to the end time
+([`e5282e2`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/e5282e2)),
+and the schedule table's horizontal scroll had no `tabindex`, a dead stop for
+a keyboard-only user, fixed with `role="region"` and a focusable wrapper
+([`923d14c`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/923d14c)).
+Both are recorded in this repo's own `CLAUDE.md` as the general lesson, not
+just the specific fix.
 
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
-
-> the prompt, verbatim
-
-Screenshots are welcome where one carries the point better than a sentence does.
-Commit the file to this repo and link it with a **relative** path, which is what
-makes it render on GitHub: `![alt text](docs/before.png)`. Images don't count
-towards the word count and don't replace the citation.
+A later run drove the real end-to-end SSE path directly rather than trusting
+the single-listener test: two and then three separate real browser sessions
+against a local server with a throwaway database, one submitting a booking
+through the actual form, the others watching `#live` update without a
+reload. It confirmed the broadcast reaches every open listener correctly ---
+a clean result, not a bug, but a genuine check the existing single-subscriber
+vitest test doesn't cover.
 
 ## Before you ship
 
