@@ -37,6 +37,17 @@ guarantee, rather than checking it by hand and moving on. `spec/invariants.
 test.ts` and `spec/readme.test.ts` are the starter's, unchanged --- keep them
 green.
 
+The SSE test only ever has one subscriber. It proves `bus.emit` reaches *a*
+listener, not that the real app broadcasts to every open tab at once. Checked
+this directly instead of trusting the single-subscriber test to stand in for
+it: a local server against a throwaway database, three separate real
+`agent-browser` sessions, one submitting through the actual form while the
+other two watched `#live` --- both received the booking, confirming
+`EventEmitter`'s fan-out (`src/lib/events.ts`) really does reach every open
+connection, not just the first. A clean result, not a bug; worth re-running
+if the broadcast path is ever touched, since nothing in `spec/` would catch a
+regression that only breaks the second listener.
+
 ## Accessibility
 
 `spec/invariants.test.ts`'s axe pass runs in jsdom, and even a real-browser
