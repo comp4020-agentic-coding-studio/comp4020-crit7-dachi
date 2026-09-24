@@ -574,6 +574,31 @@ Durable self-knowledge, curated run by run; ephemeral state belongs in
   screenshot sweeps already are --- it's cheap (one `snapshot -c` per
   distinct page template) and checks something none of this project's
   other sensors do.
+- **WCAG 1.4.1 (use of color) is invisible to axe-core in any mode --- jsdom
+  or a real browser --- because it isn't an automatable rule at all: judging
+  whether a colour is the *only* signal for some state needs reading what the
+  markup means, not measuring contrast or ARIA validity.** On
+  `comp4020-crit7-dachi` (a room-booking app), a finished booking's table row
+  got `tr.past { color: #595959 }` and nothing else --- no text, no ARIA
+  attribute --- so a screen-reader user (or anyone who can't perceive the
+  dimming) had no way to tell a past booking from an upcoming one, even
+  though both this project's jsdom `invariants.test.ts` axe pass and an
+  earlier live `agent-browser a11y` sweep had already come back 0
+  violations/incomplete. Found by reading the CSS class names that encode
+  state (grep for a `.className { color: ... }` rule with no sibling
+  text-content or `aria-*` change) and asking "if I deleted this rule, could
+  a sighted user still tell?" --- not by any sensor already in this file.
+  Fixed by appending literal " (past)" text next to the timestamp rather than
+  an `aria-`-only fix, since a visible label satisfies 1.4.1 for everyone
+  (low vision, colour-blind, high-contrast mode) where an `sr-only` span
+  would only fix it for screen-reader users. Confirmed by rendering the built
+  server against a scratch SQLite file seeded with one past and one future
+  booking and diffing the two rows' HTML, not by trusting the code read
+  alone. General lesson: whenever a stylesheet rule keys off a state-bearing
+  class name (`.past`, `.active`, `.error`, `.selected`) and only changes
+  colour, check the markup for a second, non-colour signal of that same
+  state before trusting a clean axe/a11y sweep --- axe's silence on this
+  class of bug means "not checked," not "fine."
 
 ## Content-heavy deliverables (assignment 2 and beyond)
 
@@ -1480,3 +1505,40 @@ deliverable built on this same Vite/TS static template:
   real concurrent requests before assuming it exists just because the code
   looks like two separate statements --- the language's own concurrency
   model can already close the gap.
+- **Checked the two sensor angles the third run's hand-off had flagged as
+  untried, and both resolved by reading the architecture rather than by live
+  simulation --- ruled clean, not bugs.** (1) Whether a client that misses
+  SSE events while disconnected has a real gap against the brief's "the core
+  flow persists across a reload": no, because the schedule table is
+  server-rendered fresh from SQLite on every request, completely independent
+  of the SSE bus --- the `#live` list is explicitly scoped in its own copy
+  ("New bookings from *other tabs* appear here as they happen") as a
+  best-effort notification of concurrent activity, not the persistence
+  layer, so it never needing to replay missed events is by design, not a
+  gap. Tried to confirm this by toggling `agent-browser set offline on/off`
+  against a live `EventSource`, but CDP's offline emulation didn't actually
+  close the already-established stream even past its 30s heartbeat interval
+  --- the architectural read from the code (no replay buffer exists to miss
+  from) settled the question anyway, and is the more reliable evidence here
+  since it doesn't depend on a flaky live simulation. (2) Whether the
+  Dockerfile/migration-at-boot path survives a real `flyctl deploy` from
+  clean disk state matching what's committed: already answered by this
+  project's own history --- the very first deploy (logged above) provisioned
+  a fresh machine and volume from zero and booted correctly, and three
+  further real `flyctl deploy` runs since have each re-applied
+  `drizzle-orm`'s migrator against the same persistent volume without issue.
+  Re-testing this would need destroying the live volume for no new
+  information, not a proportionate test. General lesson: a "does this
+  survive X" question doesn't always need a fresh live simulation --- if the
+  code's own architecture (no buffer to replay from) or the project's own
+  deploy history (already exercised the exact scenario in question) already
+  settles it, reasoning from what's already true is legitimate verification,
+  not a skipped check.
+- **A fresh angle after two candidates from the boundary-validation and
+  deploy-path families both resolved clean: ask what UI state is conveyed by
+  a CSS class alone, not just what a raw HTTP request could smuggle past
+  validation.** This is where the WCAG 1.4.1 use-of-color finding above came
+  from --- a different question shape than "what could a request that isn't
+  the form send" (already mined for three real bugs on this project), worth
+  reaching for once that specific vein goes quiet rather than re-deriving the
+  same three checks again.
