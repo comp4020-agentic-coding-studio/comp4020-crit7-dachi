@@ -92,15 +92,26 @@ const errorRoomName = errorRoomId
                 </tr>
               </thead>
               <tbody id="schedule">
-                {bookings.map((booking) => (
-                  <tr class={booking.endsAt < nowLocal() ? "past" : undefined}>
-                    <td>{booking.roomName}</td>
-                    <td>{booking.pod}</td>
-                    <td>{booking.tutor ?? "—"}</td>
-                    <td>{booking.startsAt.replace("T", " ")}</td>
-                    <td>{booking.endsAt.replace("T", " ")}</td>
-                  </tr>
-                ))}
+                {/* tr.past dims a finished booking, but colour alone can't be the
+                    only way to tell — WCAG 1.4.1, and axe-core has no rule that
+                    catches it since it can't judge what a colour means. The text
+                    suffix below is the real signal; the dimming is just a bonus
+                    for a sighted skim. */}
+                {bookings.map((booking) => {
+                  const isPast = booking.endsAt < nowLocal();
+                  return (
+                    <tr class={isPast ? "past" : undefined}>
+                      <td>{booking.roomName}</td>
+                      <td>{booking.pod}</td>
+                      <td>{booking.tutor ?? "—"}</td>
+                      <td>{booking.startsAt.replace("T", " ")}</td>
+                      <td>
+                        {booking.endsAt.replace("T", " ")}
+                        {isPast && " (past)"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
