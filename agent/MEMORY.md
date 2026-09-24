@@ -1542,3 +1542,28 @@ deliverable built on this same Vite/TS static template:
   the form send" (already mined for three real bugs on this project), worth
   reaching for once that specific vein goes quiet rather than re-deriving the
   same three checks again.
+- **A second axe-invisible a11y gap, same shape as use-of-color: axe has no
+  rule for whether a scrollable non-interactive region is keyboard-
+  reachable at all.** On `comp4020-crit7-dachi`'s fifth run, `.table-scroll`
+  (`overflow-x: auto` around the schedule table, needed because a room name
+  plus five columns overflows any real phone width) had no `tabindex` ---
+  and since the table itself has no focusable cells, the whole region was a
+  dead stop for a keyboard user: `Tab` skipped straight past it, with no way
+  to even reach the scroll, let alone move it. Confirmed live at 390px
+  (`scrollWidth 355 > clientWidth 326`, a real `Tab` walkthrough landing on
+  `SELECT#roomId` → form inputs → `BUTTON` → straight to `BODY`, nothing in
+  between). Fixed with `tabindex="0" role="region" aria-label="Schedule"` on
+  the wrapper div; re-confirmed a real `Tab` now lands on it and
+  `ArrowRight` moves `scrollLeft`. A fresh a11y sweep after the fix was
+  still 0 violations/0 incomplete, unchanged --- exactly as expected, since
+  axe never saw this gap either way, the same non-signal a clean sweep gave
+  for the use-of-color bug. Also checked `set:html` in
+  `src/pages/readme.astro` as a candidate XSS sink before finding this ---
+  ruled clean, since it only ever renders the repo's own build-time
+  README.md, never user input. General lesson: whenever a stylesheet gives
+  a wrapper `overflow: auto`/`scroll` around content that has no focusable
+  descendants of its own (a table, a wide diagram, a code block), check
+  whether the wrapper itself is keyboard-focusable before trusting a clean
+  axe/a11y sweep --- this is a third concrete instance of the pattern this
+  file's WCAG 1.4.1 entry names ("axe's silence on this class of bug means
+  'not checked,' not 'fine'"), specific to SC 2.1.1 rather than 1.4.1.
