@@ -28,6 +28,17 @@ is the reasoning; don't widen any of it without deciding to on purpose.
 - `createBooking` revalidates the room id and time range server-side even
   though the form only ever submits values it populated itself --- keep it
   that way; never trust a client-submitted booking without rechecking it.
+- That revalidation is one layer; Astro's own same-origin check is another,
+  underneath it. `POST /api/bookings` (and any other unsafe method) 403s with
+  "Cross-site ... forbidden" unless the request's `Origin` header matches its
+  own origin --- checked directly with `curl` against a local server, both
+  with a forged `Origin` and with none at all. `spec/booking.test.ts`'s `post`
+  helper sets a matching `Origin` header for exactly this reason (real browser
+  form submissions carry one automatically; a bare `fetch`/`curl` doesn't).
+  `GET /api/bookings` and `POST`/`PUT`/`DELETE` on `/api/events` all 404,
+  Astro's default for a method with no exported handler. Neither needed a
+  fix --- confirmed clean, not assumed, since the field-level revalidation
+  above doesn't by itself say anything about the method/origin boundary.
 
 ## Tests
 

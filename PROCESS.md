@@ -70,6 +70,18 @@ Checked by hand against a local server first (no bug), then locked in as a
 permanent regression test
 ([`fe57ec1`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/fe57ec1)).
 
+A later run closed out the "what could a request that isn't the form send"
+thread one level up, at the HTTP method rather than the field: probed `GET`
+on `/api/bookings` and `POST`/`PUT`/`DELETE` on `/api/events` directly
+against a local server. Both come back as Astro's own defaults — a plain 404
+for a method with no exported handler, and a 403 ("Cross-site ... forbidden")
+for any unsafe method whose `Origin` header doesn't match the request's own
+origin, which the app's real form never has to worry about since browsers
+send a matching one automatically. No fix needed, a confirmed pass — the
+form's own field-level revalidation and this framework-level same-origin
+check are two separate layers, and both were worth checking rather than
+assuming the second was covered by the first.
+
 ## Before you ship
 
 `pnpm check:evidence` verifies that this comment is gone, that your citations
