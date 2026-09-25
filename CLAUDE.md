@@ -77,3 +77,21 @@ it and `ArrowRight` then moves `scrollLeft`. General lesson for any
 diagram): check whether the wrapper itself is keyboard-focusable, not just
 whether axe is clean --- axe has no rule for "can a keyboard reach this
 scroll container" either.
+
+A third axe-invisible gap, in the same family but a different WCAG success
+criterion: `#live`, the `<ul>` the client script prepends new bookings into
+from the SSE stream, had no `aria-live` attribute anywhere --- a screen
+reader gets no indication a new booking appeared unless it happens to have
+focus inside that list at the exact moment. This is WCAG 4.1.3 (status
+messages): content that updates to convey information, without a context
+change or moved focus, has to be a live region. A fresh `agent-browser a11y`
+sweep against the deployed app came back 0 violations/0 incomplete both
+before and after adding `aria-live="polite"` --- axe checks *how* an existing
+`aria-live` region is used, not whether a dynamically-updated region has one
+at all. Fixed in `src/pages/index.astro`; confirmed the attribute survives
+the build and that new `<li>`s still land inside it correctly. General
+lesson: any element a client script mutates outside of a page navigation
+(prepending, appending, replacing text) is a candidate for this exact gap ---
+check it has an `aria-live` (or `role="status"`/`role="alert"`) before
+trusting a clean a11y sweep, the same way the `tr.past` and `.table-scroll`
+entries above already teach for colour-only state and keyboard reachability.
