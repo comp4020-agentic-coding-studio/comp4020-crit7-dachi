@@ -1,59 +1,67 @@
-# Hand-off --- crit 7 (Crit Rooms / ANU system), seventh run
+# Hand-off --- crit 7 (Crit Rooms / ANU system), eighth run
 
 ## State
 
-113.5h to cutoff at prompt time --- ~32% of the 168h window elapsed, still
-plan/build/deepen. Working tree clean, pushed, live URL redeployed and
-confirmed serving the current commit.
+107.5h to cutoff at prompt time --- ~36% of the 168h window elapsed, still
+plan/build/deepen. Working tree clean, pushed. Live URL confirmed serving
+(machine autostarted on request after being idle-stopped, both `/` and
+`/readme/` 200).
 
-Per the sixth run's hand-off, did the repeat a11y/keyboard/resize/screenshot
-sweep (the first repeat since the "(past)" text and scroll-region `tabindex`
-fixes landed) and it found one real, new bug: `#live`, the `<ul>` the client
-script prepends new SSE-delivered bookings into, had no `aria-live` anywhere
-in the source. A fresh `agent-browser a11y` sweep against the live app came
-back 0 violations/0 incomplete both before and after the fix --- axe checks
-how an existing live region is used, not whether a dynamically-updated one
-has one at all, the same "axe's silence means not checked" shape as the two
-earlier a11y-invisible gaps (`tr.past`, `.table-scroll`). Fixed with
-`aria-live="polite"` (`ffff116`), written into the deliverable's own
-`CLAUDE.md` as a third instance of the pattern, redeployed and confirmed live.
+Followed the seventh run's hand-off: tried the two fresh lenses it named
+(API HTTP-method boundary, README/copy precision) rather than repeating a
+browser-automation sweep, since that had just gone dry once as a genuine
+repeat pass.
 
-Also did the logic/state-symmetry pass over `createBooking`/`findConflict`
-the sixth run's hand-off flagged as untried. The overlap formula
-(`existing.start < new.end && existing.end > new.start`) is symmetric and
-correct by construction for every containment/envelopment/exact-match shape
---- checked all of those by hand against a local server, all correct, no bug.
-The one genuine untested edge was the half-open boundary itself (two
-bookings that touch but don't overlap): also correct, but nothing in
-`spec/booking.test.ts` asserted it, so an off-by-one on `</<=` or `>/>=` in a
-future edit could regress silently. Locked in as a permanent test (`fe57ec1`)
-rather than left as a one-off confirmation. `PROCESS.md` updated to cite both
-(`37e0d90`); `pnpm check:evidence` still passes except the one deliberate,
-expected gate (`reflections/crit-7.md` correctly still missing).
+- **HTTP method/CSRF boundary**: probed `GET /api/bookings` and
+  `POST`/`PUT`/`DELETE /api/events` directly against a local server with a
+  scratch DB. `GET`/unimplemented methods 404 (Astro's default, no handler
+  exported); any unsafe method whose `Origin` header doesn't match the
+  request's own origin 403s ("Cross-site ... forbidden") --- Astro's
+  built-in same-origin check, already known to and deliberately worked
+  around by `spec/booking.test.ts`'s own `post()` helper (sets a matching
+  `Origin`, with a comment explaining why). Confirmed clean, not a bug:
+  the app's field-level revalidation (already hardened over four earlier
+  runs: timestamp shape, calendar validity, text length) and this
+  framework-level method/origin boundary are two separate layers, and
+  both are now checked rather than assumed. Documented in this repo's own
+  `CLAUDE.md` and `PROCESS.md` (`e040b34`).
+- **Copy precision**: read `README.md`, `readme.astro`, and `index.astro`
+  fresh end to end, cross-checked every claim (persistence, conflict
+  rejection, the half-open boundary, the error-code-to-copy mapping in
+  `ERROR_TEXT`) against `spec/booking.test.ts` and `spec/invariants.test.ts`
+  line by line. Everything matched --- no copy/behaviour drift found.
 
-Full run of commands: `pnpm check` (typecheck + build + 34 tests, all green),
-`agent-browser a11y` on `/` and `/readme/`, a full keyboard Tab walkthrough
-with the schedule table both empty and populated, a 320px reflow check on
-both pages, 390px/1920px screenshots against the live URL (no visual
-regressions), and direct `curl` boundary/containment tests against a local
-server with a throwaway database. All local servers and scratch DB files
-were shut down/removed before finishing; `git status` was clean throughout
-except the intended commits.
+Both lenses came back clean; this is a docs-only commit (no app-code
+change), so no redeploy was needed --- confirmed the already-running
+commit still serves correctly instead.
+
+`pnpm check` (typecheck + build + 34 tests) green throughout.
+`pnpm check:evidence` still fails only on the one deliberate, expected gate
+(`reflections/crit-7.md` correctly still missing this early).
 
 ## Next action
 
-Every sensor family this project has invented (boundary-validation,
-SSE/deploy resilience, use-of-color, keyboard-reachable scroll, multi-tab
-broadcast, and now aria-live + overlap-boundary symmetry) has been tried at
-least once, and the a11y/keyboard/resize sweep has now gone dry once as a
-genuine *repeat* pass (after finding one real bug on this repeat). Still
->100h on the clock, so don't draft `reflections/crit-7.md` yet --- well under
-the ~50--60% elapsed mark where crit-4/5 diverged on that call. If a further
-run finds the sensor well dry on a second repeat pass too, look for a fresh
-angle the way past crits did: this app has much less internal state than the
-crit-4/5 interactive prototypes (closer to the "content-heavy" calibration
-per `MEMORY.md`), so the next untried lens is more likely to be
-content/copy-precision on `README.md`/`readme.astro` or a fresh read of
-`src/pages/api/*.ts` for a boundary-validation angle not yet covered (e.g.
-what happens to a GET/PUT/DELETE against `/api/bookings` or `/api/events`),
-rather than another browser-automation sweep.
+Two consecutive runs have now gone dry across every sensor family this
+project has invented (boundary-validation at the field level, HTTP
+method/CSRF boundary, SSE/deploy resilience, three axe-invisible a11y
+gaps, overlap-boundary symmetry, multi-tab broadcast, copy precision) ---
+worth treating as a real signal, per the assignment-1/crit-4/crit-5
+precedent, that the seam here is thinning. Still well under the ~50--60%
+elapsed mark where those prior deliverables drafted their reflection
+early (36% now), so don't draft `reflections/crit-7.md` yet.
+
+Untried angles worth a further run before assuming there's truly nothing
+left: (1) the Dockerfile/CI workflow itself --- read `.github/workflows/`
+if present and confirm the automated deploy/check gate actually matches
+what `flyctl deploy`/`pnpm check` do by hand, since no prior run has
+cross-checked CI config against local commands directly; (2) whether
+`PRAGMA foreign_keys` is ever turned on in `src/lib/db.ts` --- it isn't
+currently, so the `bookings.roomId` FK to `rooms` is declarative only, not
+DB-enforced; not exploitable via the app's one insert path (`createBooking`
+already checks room existence first), but worth a deliberate one-line
+note or fix rather than leaving it unexamined since it's a genuine gap
+between the schema's stated constraint and the database's actual
+behaviour; (3) if both of those come back clean too, that's a third dry
+pass and the next move is probably to keep the project ticking over with
+light-touch re-verification (per the crit-5 precedent for runs 9--16)
+until either something changes or the reflection becomes due.

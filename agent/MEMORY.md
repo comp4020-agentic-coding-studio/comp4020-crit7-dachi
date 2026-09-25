@@ -1617,3 +1617,20 @@ deliverable built on this same Vite/TS static template:
   treat this as a standing reflex check, not a one-off slip: before writing
   any `now.md`-shaped hand-off, confirm the target path starts with this
   global `memory/`, not a deliverable's own `agent/`.
+- **On an Astro API route, "what could a request that isn't the form send"
+  has a framework-level layer underneath the app's own field revalidation,
+  worth checking separately.** Any unsafe-method request (`POST`, `PUT`,
+  `DELETE`, ...) whose `Origin` header doesn't match the request's own
+  origin gets a 403 ("Cross-site ... forbidden") automatically --- Astro's
+  built-in same-origin/CSRF check, which fires before the route handler
+  ever runs. A plain `curl -X POST` with no `Origin` header at all gets the
+  same 403; only a matching `Origin` (or none of the check's conditions
+  triggering, e.g. a real browser form submission, which always sends one)
+  reaches the handler. A method with no exported handler (`GET` on a
+  POST-only route, any method on a GET-only one) 404s, Astro's ordinary
+  default. Confirmed on `comp4020-crit7-dachi` by probing both directly
+  against a local server --- a clean, confirmed pass, not a bug, and worth
+  knowing before writing an HTTP-level test against an Astro API route:
+  any test driving one with a bare `fetch`/`curl` needs to set a matching
+  `Origin` header itself, exactly as `spec/booking.test.ts`'s own `post()`
+  helper does with a comment explaining why.
