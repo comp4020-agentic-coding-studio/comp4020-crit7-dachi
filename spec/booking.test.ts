@@ -103,6 +103,35 @@ describe("bookings", () => {
     expect(body).not.toContain(second);
   });
 
+  it("allows a booking that starts exactly when another ends in the same room", async () => {
+    // findConflict's windows are half-open ([start, end)) on purpose — a
+    // 9-10am booking and a 10-11am booking in the same room don't overlap.
+    // The comparison is `existing.start < new.end && existing.end > new.start`;
+    // an off-by-one here (<=/>= instead of </>) would make legitimate
+    // back-to-back bookings collide, and nothing else in this file exercises
+    // the boundary.
+    const first = `touch-first ${process.hrtime.bigint()}`;
+    const second = `touch-second ${process.hrtime.bigint()}`;
+
+    const firstRes = await post(
+      "/api/bookings",
+      booking({ pod: first, roomId: "4", startsAt: "2031-05-01T09:00", endsAt: "2031-05-01T10:00" }),
+    );
+    expect(firstRes.status).toBe(303);
+    expect(firstRes.headers.get("location")).toBe("/");
+
+    const secondRes = await post(
+      "/api/bookings",
+      booking({ pod: second, roomId: "4", startsAt: "2031-05-01T10:00", endsAt: "2031-05-01T11:00" }),
+    );
+    expect(secondRes.status).toBe(303);
+    expect(secondRes.headers.get("location")).toBe("/");
+
+    const body = await (await fetch(baseUrl)).text();
+    expect(body).toContain(first);
+    expect(body).toContain(second);
+  });
+
   it("rejects a booking whose timestamps aren't in the datetime-local shape", async () => {
     // The form can only ever produce this shape, but the API route takes any
     // HTTP request — a client that isn't the form (or a broken one) could

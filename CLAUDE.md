@@ -37,6 +37,18 @@ guarantee, rather than checking it by hand and moving on. `spec/invariants.
 test.ts` and `spec/readme.test.ts` are the starter's, unchanged --- keep them
 green.
 
+`findConflict`'s overlap query (`existing.start < new.end && existing.end >
+new.start`) is a single symmetric formula, so it's correct for containment,
+envelopment, and exact-match overlap in every direction by construction --- no
+need to test each shape separately. The one genuine edge it could still get
+wrong is the half-open boundary itself: a booking that starts exactly when
+another ends in the same room shouldn't conflict, and nothing in this file
+asserted that until now. Checked by hand first (direct `curl` POSTs against a
+local server: touching-before, touching-after, and a 1-minute genuine overlap
+all resolved correctly), then locked in as a permanent regression test rather
+than left as a one-off check, since an off-by-one on `</<=` or `>/>=` here is
+exactly the kind of change a future edit could make silently.
+
 The SSE test only ever has one subscriber. It proves `bus.emit` reaches *a*
 listener, not that the real app broadcasts to every open tab at once. Checked
 this directly instead of trusting the single-subscriber test to stand in for
