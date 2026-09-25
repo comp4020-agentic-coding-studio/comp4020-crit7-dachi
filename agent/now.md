@@ -1,61 +1,59 @@
-# Hand-off --- crit 7 (Crit Rooms / ANU system), sixth run
+# Hand-off --- crit 7 (Crit Rooms / ANU system), seventh run
 
 ## State
 
-120.5h to cutoff at prompt time --- ~28% of the 168h window elapsed, still
-plan/build/deepen. Working tree clean, up to date with `origin/main`, no
-functional code changed this run (only docs), so the live deploy is still
-current and wasn't redeployed.
+113.5h to cutoff at prompt time --- ~32% of the 168h window elapsed, still
+plan/build/deepen. Working tree clean, pushed, live URL redeployed and
+confirmed serving the current commit.
 
-The fifth run's hand-off named one genuinely untried angle: a real two-tab
-SSE round trip, since `spec/booking.test.ts` only ever has one subscriber.
-This run built the app (`pnpm build`), ran it locally against a throwaway
-SQLite file (`DATABASE_PATH=/tmp/... node ./dist/server/entry.mjs`), and
-drove three separate real `agent-browser` sessions against it: one submitted
-a booking through the actual form, the other two watched `#live` without
-reloading. Both received the booking correctly, confirming `EventEmitter`'s
-fan-out in `src/lib/events.ts` reaches every open connection, not just the
-first the vitest test happens to open. A clean result, not a bug --- written
-into the deliverable's own `CLAUDE.md` (`aeaebef`) as the general lesson (the
-existing test can't catch a regression that only breaks the second
-listener). Local server and browser sessions were shut down and the
-throwaway `.db` files removed before finishing; `git status` was clean
-throughout.
+Per the sixth run's hand-off, did the repeat a11y/keyboard/resize/screenshot
+sweep (the first repeat since the "(past)" text and scroll-region `tabindex`
+fixes landed) and it found one real, new bug: `#live`, the `<ul>` the client
+script prepends new SSE-delivered bookings into, had no `aria-live` anywhere
+in the source. A fresh `agent-browser a11y` sweep against the live app came
+back 0 violations/0 incomplete both before and after the fix --- axe checks
+how an existing live region is used, not whether a dynamically-updated one
+has one at all, the same "axe's silence means not checked" shape as the two
+earlier a11y-invisible gaps (`tr.past`, `.table-scroll`). Fixed with
+`aria-live="polite"` (`ffff116`), written into the deliverable's own
+`CLAUDE.md` as a third instance of the pattern, redeployed and confirmed live.
 
-With the sensor well otherwise already exhausted (boundary-validation,
-SSE/deploy resilience, use-of-color, keyboard-reachable scroll, and now
-multi-tab broadcast all checked at least once), and still >100h on the
-clock, this run also drafted `PROCESS.md` (`e88bd29`) from the five runs'
-worth of settled history --- the build, the three boundary-validation
-fixes, the two axe-invisible a11y fixes, and this run's SSE check --- per
-the crit-4 precedent (28% elapsed: safe to extend `PROCESS.md` as an
-incremental artefact, too early to lock in `reflections/crit-7.md`).
-`pnpm check:evidence` confirms PROCESS.md's own citations all resolve; the
-only remaining gate is the reflection, correctly still missing.
+Also did the logic/state-symmetry pass over `createBooking`/`findConflict`
+the sixth run's hand-off flagged as untried. The overlap formula
+(`existing.start < new.end && existing.end > new.start`) is symmetric and
+correct by construction for every containment/envelopment/exact-match shape
+--- checked all of those by hand against a local server, all correct, no bug.
+The one genuine untested edge was the half-open boundary itself (two
+bookings that touch but don't overlap): also correct, but nothing in
+`spec/booking.test.ts` asserted it, so an off-by-one on `</<=` or `>/>=` in a
+future edit could regress silently. Locked in as a permanent test (`fe57ec1`)
+rather than left as a one-off confirmation. `PROCESS.md` updated to cite both
+(`37e0d90`); `pnpm check:evidence` still passes except the one deliberate,
+expected gate (`reflections/crit-7.md` correctly still missing).
 
-**Correction logged this run, not repeated:** briefly hand-edited the
-deliverable's `agent/now.md` directly out of habit before catching it and
-reverting (uncommitted, never pushed) --- confirmed again it's a
-harness-synced mirror of this exact file, never to be hand-edited. See the
-"Every deliverable repo has its own `agent/now.md`" entry in `MEMORY.md`;
-this is the second near-miss of the same mistake (first logged against
-crit 5), worth treating as a standing reflex check at the start of any
-write to a deliverable's `now.md`-shaped path: confirm the path starts with
-this global `memory/`, not the deliverable's own `agent/`.
+Full run of commands: `pnpm check` (typecheck + build + 34 tests, all green),
+`agent-browser a11y` on `/` and `/readme/`, a full keyboard Tab walkthrough
+with the schedule table both empty and populated, a 320px reflow check on
+both pages, 390px/1920px screenshots against the live URL (no visual
+regressions), and direct `curl` boundary/containment tests against a local
+server with a throwaway database. All local servers and scratch DB files
+were shut down/removed before finishing; `git status` was clean throughout
+except the intended commits.
 
 ## Next action
 
-Every sensor family this project has invented has now been tried once but
-not repeated. The next genuinely new angle, per the fifth run's hand-off, is
-re-running the full a11y/keyboard/resize/screenshot sweep as a *repeat*
-pass --- it hasn't gone dry twice yet, only once, and two UI changes have
-landed since the last full sweep (the "(past)" text, the scrollable
-region's `tabindex`/`role`). If that comes back clean too, look for a fresh
-angle the way past crits did once repeat passes stopped finding anything ---
-logic/state-symmetry within `createBooking`/`findConflict` hasn't been
-tried yet the way it was on the crit-4/5 series, and might be worth a look
-even though this app has much less internal state to disagree with itself
-over (closer to the "content-heavy" calibration than the interactive-
-prototype one, per MEMORY.md). Don't draft `reflections/crit-7.md` yet ---
-still well under the ~50--60% elapsed mark where crit-4/5 diverged on that
-call.
+Every sensor family this project has invented (boundary-validation,
+SSE/deploy resilience, use-of-color, keyboard-reachable scroll, multi-tab
+broadcast, and now aria-live + overlap-boundary symmetry) has been tried at
+least once, and the a11y/keyboard/resize sweep has now gone dry once as a
+genuine *repeat* pass (after finding one real bug on this repeat). Still
+>100h on the clock, so don't draft `reflections/crit-7.md` yet --- well under
+the ~50--60% elapsed mark where crit-4/5 diverged on that call. If a further
+run finds the sensor well dry on a second repeat pass too, look for a fresh
+angle the way past crits did: this app has much less internal state than the
+crit-4/5 interactive prototypes (closer to the "content-heavy" calibration
+per `MEMORY.md`), so the next untried lens is more likely to be
+content/copy-precision on `README.md`/`readme.astro` or a fresh read of
+`src/pages/api/*.ts` for a boundary-validation angle not yet covered (e.g.
+what happens to a GET/PUT/DELETE against `/api/bookings` or `/api/events`),
+rather than another browser-automation sweep.

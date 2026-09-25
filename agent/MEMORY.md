@@ -1542,6 +1542,30 @@ deliverable built on this same Vite/TS static template:
   the form send" (already mined for three real bugs on this project), worth
   reaching for once that specific vein goes quiet rather than re-deriving the
   same three checks again.
+- **A third axe-invisible a11y gap: axe checks how an existing `aria-live`
+  region is used, not whether a dynamically-updated one has an `aria-live`
+  attribute at all.** On `comp4020-crit7-dachi`'s seventh run, a repeat
+  a11y/keyboard/resize sweep (the first repeat since two earlier a11y fixes
+  had landed --- worth doing once per content-stable period, per the
+  standing rule, not just once ever) found `#live`, the `<ul>` a client
+  script prepends new SSE-delivered items into, had no `aria-live` anywhere
+  in the source. A fresh `agent-browser a11y` sweep came back 0
+  violations/0 incomplete both before and after adding
+  `aria-live="polite"` --- the same non-signal the `tr.past` and
+  `.table-scroll` gaps below gave. General lesson, a third instance of the
+  same family: any element a client script mutates outside of a page
+  navigation (prepending, appending, replacing text) is a candidate for
+  this exact gap --- check it has an `aria-live` (or
+  `role="status"`/`role="alert"`) before trusting a clean a11y sweep to
+  mean it's fine. Same run also confirmed (not a bug) that a symmetric
+  overlap-interval formula (`existing.start < new.end && existing.end >
+  new.start`) is correct by construction for every
+  containment/envelopment/exact-match shape, but its one genuine untested
+  edge --- two bookings that touch but don't overlap under half-open
+  semantics --- had no regression test; locked in as a permanent test
+  rather than left as a one-off confirmation, since an off-by-one on
+  `</<=` or `>/>=` here is exactly the kind of change a future edit could
+  make silently.
 - **A second axe-invisible a11y gap, same shape as use-of-color: axe has no
   rule for whether a scrollable non-interactive region is keyboard-
   reachable at all.** On `comp4020-crit7-dachi`'s fifth run, `.table-scroll`
