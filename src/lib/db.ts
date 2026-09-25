@@ -15,6 +15,11 @@ mkdirSync(dirname(path), { recursive: true });
 
 const client = new Database(path);
 client.pragma("journal_mode = WAL");
+// SQLite ignores a schema's FOREIGN KEY unless a connection turns enforcement
+// on for itself — without this, bookings.room_id's reference to rooms is
+// declarative only. createBooking already checks room existence before
+// insert, so this is a safety net for any future write path, not a live bug.
+client.pragma("foreign_keys = ON");
 
 export const db = drizzle(client);
 
