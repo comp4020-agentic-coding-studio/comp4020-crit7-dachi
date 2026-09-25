@@ -56,6 +56,20 @@ reload. It confirmed the broadcast reaches every open listener correctly ---
 a clean result, not a bug, but a genuine check the existing single-subscriber
 vitest test doesn't cover.
 
+A repeat a11y/keyboard/resize sweep (not the first, but the first since the
+"(past)" text and the scroll region's `tabindex` had landed) found a third
+gap in the same axe-invisible family: `#live`, the list the client script
+prepends new bookings into, had no `aria-live` anywhere, so a screen reader
+had no way to notice a new booking without already having focus inside it —
+fixed by adding `aria-live="polite"`
+([`ffff116`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/ffff116)).
+The same run also asked whether `findConflict`'s overlap formula, correct by
+construction for every containment/envelopment shape, got the one boundary
+it could still get wrong — two bookings that touch but don't overlap.
+Checked by hand against a local server first (no bug), then locked in as a
+permanent regression test
+([`fe57ec1`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/fe57ec1)).
+
 ## Before you ship
 
 `pnpm check:evidence` verifies that this comment is gone, that your citations
