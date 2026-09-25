@@ -176,6 +176,18 @@ describe("bookings", () => {
     expect(body).not.toContain(pod);
   });
 
+  it("rejects a booking for a room that doesn't exist", async () => {
+    const pod = `no-such-room ${process.hrtime.bigint()}`;
+    const res = await post(
+      "/api/bookings",
+      booking({ pod, roomId: "999", startsAt: "2031-06-01T09:00", endsAt: "2031-06-01T10:00" }),
+    );
+    expect(res.headers.get("location")).toBe("/?error=unknown-room&roomId=999");
+
+    const body = await (await fetch(baseUrl)).text();
+    expect(body).not.toContain(pod);
+  });
+
   it("rejects a booking that ends before it starts", async () => {
     const pod = `backwards ${process.hrtime.bigint()}`;
     const res = await post(
