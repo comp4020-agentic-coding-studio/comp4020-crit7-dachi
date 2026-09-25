@@ -1617,6 +1617,26 @@ deliverable built on this same Vite/TS static template:
   treat this as a standing reflex check, not a one-off slip: before writing
   any `now.md`-shaped hand-off, confirm the target path starts with this
   global `memory/`, not a deliverable's own `agent/`.
+- **A cheap, distinct test-coverage sensor for any function returning a
+  closed union of failure reasons: grep the spec file for each literal
+  reason string, don't re-read the validation logic by eye.** On
+  `comp4020-crit7-dachi`'s ninth run, `createBooking`'s
+  `CreateBookingResult["reason"]` had five members (`unknown-room`,
+  `bad-format`, `too-long`, `bad-range`, `conflict`); four had a regression
+  test, `unknown-room` didn't --- invisible to every prior pass because none
+  of them checked test coverage against the type's own member list directly,
+  they each reasoned about individual fields (timestamp shape, text length,
+  calendar validity). Fixed by adding the missing case and enabling
+  `PRAGMA foreign_keys` in the same run (`src/lib/db.ts` declared a
+  `FOREIGN KEY` via Drizzle's `.references()`, present in the generated
+  migration SQL, but SQLite doesn't enforce a foreign key unless a
+  connection turns it on for itself --- decorative, not a live bug, since
+  `createBooking` already checks room existence before every insert; fixed
+  as a safety net for any future write path). General lesson: for any
+  discriminated-union return type with an enumerated failure/reason field,
+  grep the test file for each literal member as a fast, mechanical
+  completeness check --- distinct from, and cheaper than, re-deriving
+  coverage gaps by reading the validation function's branches one at a time.
 - **On an Astro API route, "what could a request that isn't the form send"
   has a framework-level layer underneath the app's own field revalidation,
   worth checking separately.** Any unsafe-method request (`POST`, `PUT`,

@@ -1,67 +1,66 @@
-# Hand-off --- crit 7 (Crit Rooms / ANU system), eighth run
+# Hand-off --- crit 7 (Crit Rooms / ANU system), ninth run
 
 ## State
 
-107.5h to cutoff at prompt time --- ~36% of the 168h window elapsed, still
-plan/build/deepen. Working tree clean, pushed. Live URL confirmed serving
-(machine autostarted on request after being idle-stopped, both `/` and
-`/readme/` 200).
+96.5h to cutoff at prompt time --- ~42.6% of the 168h window elapsed, still
+plan/build/deepen. Working tree clean, pushed, redeployed, live URL confirmed
+serving the new commit (`curl` against the live `/api/bookings` with
+`roomId=999` returns the new `?error=unknown-room&roomId=999` redirect).
 
-Followed the seventh run's hand-off: tried the two fresh lenses it named
-(API HTTP-method boundary, README/copy precision) rather than repeating a
-browser-automation sweep, since that had just gone dry once as a genuine
-repeat pass.
+Followed the eighth run's hand-off: the two untried angles it named both
+resolved as real, if minor, gaps rather than confirms.
 
-- **HTTP method/CSRF boundary**: probed `GET /api/bookings` and
-  `POST`/`PUT`/`DELETE /api/events` directly against a local server with a
-  scratch DB. `GET`/unimplemented methods 404 (Astro's default, no handler
-  exported); any unsafe method whose `Origin` header doesn't match the
-  request's own origin 403s ("Cross-site ... forbidden") --- Astro's
-  built-in same-origin check, already known to and deliberately worked
-  around by `spec/booking.test.ts`'s own `post()` helper (sets a matching
-  `Origin`, with a comment explaining why). Confirmed clean, not a bug:
-  the app's field-level revalidation (already hardened over four earlier
-  runs: timestamp shape, calendar validity, text length) and this
-  framework-level method/origin boundary are two separate layers, and
-  both are now checked rather than assumed. Documented in this repo's own
-  `CLAUDE.md` and `PROCESS.md` (`e040b34`).
-- **Copy precision**: read `README.md`, `readme.astro`, and `index.astro`
-  fresh end to end, cross-checked every claim (persistence, conflict
-  rejection, the half-open boundary, the error-code-to-copy mapping in
-  `ERROR_TEXT`) against `spec/booking.test.ts` and `spec/invariants.test.ts`
-  line by line. Everything matched --- no copy/behaviour drift found.
+- **`PRAGMA foreign_keys`**: confirmed never enabled in `src/lib/db.ts`, so
+  `bookings.room_id`'s declared `FOREIGN KEY` (present in the migration SQL)
+  was decorative --- SQLite doesn't enforce a foreign key unless a connection
+  turns it on for itself. Not exploitable via the app's one insert path
+  (`createBooking` already checks room existence before insert), so this is a
+  safety net for a future write path, not a live-bug fix. Enabled with one
+  line (`b4aab3d`).
+- **CI workflow vs. local commands**: read `.github/workflows/checks.yml` in
+  full for the first time. It does substantially more than `pnpm check` +
+  `flyctl deploy` by hand once public --- it also live-verifies the deployed
+  site is online, the SSE endpoint streams, the app correctly detects HTTPS
+  behind Fly's proxy (via `astro.config.ts`'s `allowedDomains`, already
+  configured), CSRF protection is still on, and internal links resolve.
+  Cross-checked each assumption the workflow's own comments make against the
+  actual app config: all confirmed already correct, no gap. A genuine dry
+  pass on this specific angle, not skipped.
+- **A third gap, found by a new technique** (not one either hand-off flagged):
+  grepped `spec/booking.test.ts` for each of `createBooking`'s five
+  `CreateBookingResult["reason"]` strings rather than re-reading the
+  validation logic by eye --- `unknown-room` had no regression test, the
+  only one of five without one. Added it (`7c26402`); all 35 tests
+  (up from 34) pass, and the live redeploy confirms the branch really is
+  reachable and correctly wired end to end, not just type-correct.
 
-Both lenses came back clean; this is a docs-only commit (no app-code
-change), so no redeploy was needed --- confirmed the already-running
-commit still serves correctly instead.
+Documented both fixes plus the reason-string-checklist technique in this
+repo's own `CLAUDE.md` (`74e8658`).
 
-`pnpm check` (typecheck + build + 34 tests) green throughout.
+`pnpm check` (typecheck + build + 35 tests) green throughout.
 `pnpm check:evidence` still fails only on the one deliberate, expected gate
 (`reflections/crit-7.md` correctly still missing this early).
 
 ## Next action
 
-Two consecutive runs have now gone dry across every sensor family this
-project has invented (boundary-validation at the field level, HTTP
-method/CSRF boundary, SSE/deploy resilience, three axe-invisible a11y
-gaps, overlap-boundary symmetry, multi-tab broadcast, copy precision) ---
-worth treating as a real signal, per the assignment-1/crit-4/crit-5
-precedent, that the seam here is thinning. Still well under the ~50--60%
-elapsed mark where those prior deliverables drafted their reflection
-early (36% now), so don't draft `reflections/crit-7.md` yet.
+Three consecutive runs have now gone dry or turned up only minor gaps across
+every sensor family this project has invented (field-level and HTTP-boundary
+validation, SSE/deploy resilience, three axe-invisible a11y gaps,
+overlap-boundary symmetry, multi-tab broadcast, copy precision, CI-vs-local
+config, and now a test-coverage checklist by reason string). Still well
+under the ~50--60% elapsed mark where prior deliverables drafted their
+reflection early (42.6% now) --- don't draft `reflections/crit-7.md` yet, but
+it's getting closer; the next run or two should probably decide.
 
-Untried angles worth a further run before assuming there's truly nothing
-left: (1) the Dockerfile/CI workflow itself --- read `.github/workflows/`
-if present and confirm the automated deploy/check gate actually matches
-what `flyctl deploy`/`pnpm check` do by hand, since no prior run has
-cross-checked CI config against local commands directly; (2) whether
-`PRAGMA foreign_keys` is ever turned on in `src/lib/db.ts` --- it isn't
-currently, so the `bookings.roomId` FK to `rooms` is declarative only, not
-DB-enforced; not exploitable via the app's one insert path (`createBooking`
-already checks room existence first), but worth a deliberate one-line
-note or fix rather than leaving it unexamined since it's a genuine gap
-between the schema's stated constraint and the database's actual
-behaviour; (3) if both of those come back clean too, that's a third dry
-pass and the next move is probably to keep the project ticking over with
-light-touch re-verification (per the crit-5 precedent for runs 9--16)
-until either something changes or the reflection becomes due.
+Angles not yet tried, worth reaching for before assuming the well is fully
+dry: (1) the reason-string-checklist technique generalises --- check whether
+`spec/invariants.test.ts` (the starter's own file, never audited this way by
+this project) has a similar per-branch gap against whatever contract it
+states; (2) `src/lib/events.ts`'s `EventEmitter` has no explicit
+`setMaxListeners` --- Node warns past 10 listeners by default; check whether
+a burst of concurrent SSE subscribers (more than 10 real tabs) would emit
+that warning to the deployed app's logs, which would be cosmetic but still a
+real polish gap; (3) if both come back clean, that's the fourth dry pass and
+probably the point to start treating runs as light-touch re-verification
+(per the crit-5 precedent for its runs 9--16) while watching the elapsed
+fraction for when to draft the reflection.
