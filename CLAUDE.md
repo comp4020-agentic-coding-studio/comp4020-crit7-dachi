@@ -28,6 +28,13 @@ is the reasoning; don't widen any of it without deciding to on purpose.
 - `createBooking` revalidates the room id and time range server-side even
   though the form only ever submits values it populated itself --- keep it
   that way; never trust a client-submitted booking without rechecking it.
+- `bookings.room_id`'s `FOREIGN KEY` to `rooms` in the schema is only
+  enforced because `src/lib/db.ts` turns on `PRAGMA foreign_keys` --- SQLite
+  ignores a declared foreign key by default. `createBooking` already checks
+  room existence before insert, so this is a safety net for any future write
+  path (a migration, a script, a second insert path), not something the
+  current API depends on. Don't remove the pragma on the assumption nothing
+  uses it.
 - That revalidation is one layer; Astro's own same-origin check is another,
   underneath it. `POST /api/bookings` (and any other unsafe method) 403s with
   "Cross-site ... forbidden" unless the request's `Origin` header matches its
@@ -70,6 +77,15 @@ other two watched `#live` --- both received the booking, confirming
 connection, not just the first. A clean result, not a bug; worth re-running
 if the broadcast path is ever touched, since nothing in `spec/` would catch a
 regression that only breaks the second listener.
+
+`createBooking`'s five failure branches (`unknown-room`, `bad-format`,
+`too-long`, `bad-range`, `conflict`) are a checklist, not just a type union:
+four had a regression test and `unknown-room` didn't, found by grepping this
+file for each reason string rather than re-reading the validation logic by
+eye. Fixed by adding the missing case (a `roomId` outside the seeded 1-4
+range). General lesson for this file specifically: whenever `db.ts` grows a
+new member of `CreateBookingResult["reason"]`, grep this file for the string
+before assuming its test coverage is already complete.
 
 ## Accessibility
 
