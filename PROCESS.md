@@ -82,6 +82,18 @@ form's own field-level revalidation and this framework-level same-origin
 check are two separate layers, and both were worth checking rather than
 assuming the second was covered by the first.
 
+A later run checked two angles the previous one had flagged as untried, both
+resolving as confirmed passes rather than bugs. The app-vs-browser input-
+arbitration family that found six real bugs on the crit-4/crit-5 static
+prototypes turned out not to apply: the client script is ten lines with no
+keydown or pointer handling to arbitrate. And whether `EventSource`'s native
+reconnect after a real network blip could leave a stale listener on the
+booking bus resolved by reading `astro`'s own Node adapter rather than trying
+to simulate a silent network death live --- it wires stream cancellation to
+the underlying response's `close` event unconditionally, which Node fires for
+any connection teardown, not just the graceful and forced-kill cases already
+tested live.
+
 ## Before you ship
 
 `pnpm check:evidence` verifies that this comment is gone, that your citations

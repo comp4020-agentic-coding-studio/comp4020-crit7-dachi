@@ -47,6 +47,35 @@ is the reasoning; don't widen any of it without deciding to on purpose.
   fix --- confirmed clean, not assumed, since the field-level revalidation
   above doesn't by itself say anything about the method/origin boundary.
 
+## Resilience
+
+- Whether `EventSource`'s native auto-reconnect (a real network blip, not
+  just a graceful or forced-kill client disconnect) can leave a stale
+  listener on `bus` was worth checking beyond the single- and multi-subscriber
+  tests above. Read `astro`'s own Node adapter (`writeResponse` in
+  `node_modules/astro/dist/core/app/node.js`) rather than trying to simulate
+  a silent network death live: it wires `destination.on("close", () =>
+  reader.cancel())` on the underlying `http.ServerResponse` unconditionally
+  --- Node fires that `close` event for *any* connection teardown (a clean
+  end, an RST from a killed process, or an eventual write failure once TCP
+  gives up on an unreachable peer), not only the graceful case already
+  confirmed live. So `GET /api/events`'s own `cancel()` (`bus.off` in
+  `src/pages/api/events.ts`) fires on every path, bounded in the worst case
+  (a truly silent black hole with no FIN/RST ever) only by the OS's own TCP
+  retransmission timeout --- an inherent property of streaming-over-HTTP in
+  general, not something this app's code could tighten further without
+  adding its own liveness-tracking layer, which would be over-engineering for
+  this scope. No fix needed, a confirmed pass from reading the framework's
+  own cleanup wiring rather than re-running a live test that couldn't
+  actually produce a silent network death in this sandbox anyway.
+- The "does the app fight the browser's own input handling" family that
+  found six real bugs across the crit-4/crit-5 static prototypes doesn't
+  apply here: the only client-side script (`src/pages/index.astro`) is ten
+  lines --- one `EventSource`, one `message` listener that prepends an
+  `<li>` --- with no keydown, pointer, or touch handling at all. Confirmed
+  by reading the script directly rather than assuming; there's nothing for
+  that family of bug to attach to.
+
 ## Tests
 
 `spec/booking.test.ts` is this project's own contract: persistence, the SSE
