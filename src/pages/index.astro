@@ -18,6 +18,14 @@ const errorRoomId = Astro.url.searchParams.get("roomId");
 const errorRoomName = errorRoomId
   ? rooms.find((room) => room.id === Number(errorRoomId))?.name
   : undefined;
+
+// On a rejected submission, refill the form from what was actually sent —
+// see api/bookings.ts's withInput — rather than making someone retype every
+// field over a single bad one (WCAG 2.2 SC 3.3.7, Redundant Entry).
+const resubmitPod = Astro.url.searchParams.get("pod") ?? "";
+const resubmitTutor = Astro.url.searchParams.get("tutor") ?? "";
+const resubmitStartsAt = Astro.url.searchParams.get("startsAt") ?? "";
+const resubmitEndsAt = Astro.url.searchParams.get("endsAt") ?? "";
 ---
 
 <!doctype html>
@@ -53,24 +61,49 @@ const errorRoomName = errorRoomId
         <div class="field">
           <label for="roomId">Room</label>
           <select id="roomId" name="roomId" required>
-            {rooms.map((room) => <option value={room.id}>{room.name}</option>)}
+            {
+              rooms.map((room) => (
+                <option value={room.id} selected={errorRoomId === String(room.id)}>
+                  {room.name}
+                </option>
+              ))
+            }
           </select>
         </div>
         <div class="field">
           <label for="pod">Pod</label>
-          <input id="pod" name="pod" required maxlength="80" placeholder="e.g. Dachi" />
+          <input
+            id="pod"
+            name="pod"
+            required
+            maxlength="80"
+            placeholder="e.g. Dachi"
+            value={resubmitPod}
+          />
         </div>
         <div class="field">
           <label for="tutor">Tutor</label>
-          <input id="tutor" name="tutor" maxlength="80" placeholder="optional" />
+          <input
+            id="tutor"
+            name="tutor"
+            maxlength="80"
+            placeholder="optional"
+            value={resubmitTutor}
+          />
         </div>
         <div class="field">
           <label for="startsAt">Starts</label>
-          <input id="startsAt" name="startsAt" type="datetime-local" required />
+          <input
+            id="startsAt"
+            name="startsAt"
+            type="datetime-local"
+            required
+            value={resubmitStartsAt}
+          />
         </div>
         <div class="field">
           <label for="endsAt">Ends</label>
-          <input id="endsAt" name="endsAt" type="datetime-local" required />
+          <input id="endsAt" name="endsAt" type="datetime-local" required value={resubmitEndsAt} />
         </div>
         <button>Book the room</button>
       </form>

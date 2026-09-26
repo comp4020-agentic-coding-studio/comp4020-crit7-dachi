@@ -10,6 +10,15 @@ import { bus } from "../../lib/events";
 // makes the form work with no client-side JavaScript at all: the submitting
 // tab re-renders from the database; every *other* tab hears about a success
 // over the stream.
+// WCAG 2.2 SC 3.3.7 (Redundant Entry): a rejected submission shouldn't make
+// someone retype everything the server already received. The redirect carries
+// what was submitted back as query params so the page can repopulate the
+// form — see index.astro's reading of these same names.
+function withInput(error: string, fields: Record<string, string | number>): string {
+  const params = new URLSearchParams({ error, ...fields } as Record<string, string>);
+  return `/?${params}`;
+}
+
 export const POST: APIRoute = async ({ request, redirect }) => {
   const form = await request.formData();
   const roomId = Number(form.get("roomId"));
@@ -17,14 +26,15 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const tutor = String(form.get("tutor") ?? "").trim();
   const startsAt = String(form.get("startsAt") ?? "").trim();
   const endsAt = String(form.get("endsAt") ?? "").trim();
+  const resubmit = { roomId, pod, tutor, startsAt, endsAt };
 
   if (!roomId || !pod || !startsAt || !endsAt) {
-    return redirect("/?error=missing", 303);
+    return redirect(withInput("missing", resubmit), 303);
   }
 
   const result = createBooking({ roomId, pod, tutor, startsAt, endsAt });
   if (!result.ok) {
-    return redirect(`/?error=${result.reason}&roomId=${roomId}`, 303);
+    return redirect(withInput(result.reason, resubmit), 303);
   }
 
   bus.emit("booking", result.booking);
