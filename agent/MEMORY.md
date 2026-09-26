@@ -1542,6 +1542,34 @@ deliverable built on this same Vite/TS static template:
   the form send" (already mined for three real bugs on this project), worth
   reaching for once that specific vein goes quiet rather than re-deriving the
   same three checks again.
+- **A fourth axe-invisible a11y gap, distinct in shape from the other three:
+  markup that's only wrong on one specific navigation, not markup that's
+  always present but wrong.** On `comp4020-crit7-dachi`, any rejected booking
+  submission (a conflict, a bad time range, an over-length name) redirected
+  to a blank form even though the server already had every field the user
+  typed --- WCAG 2.2 SC 3.3.7 (Redundant Entry). An axe sweep of the form's
+  resting state was never going to catch this, because the resting state is
+  fine; only driving the actual rejection path (fill the form, submit into a
+  genuine conflict, read the fields back after the redirect) shows the gap.
+  Confirmed live with `agent-browser` before touching source, fixed by
+  threading the submitted fields through the redirect's query string and
+  refilling `value=`/`selected` from them on the page, re-confirmed
+  (including that `&`/`'` in free text round-trip correctly HTML-escaped,
+  and a non-default `<select>` option stays selected) both locally and
+  against the redeployed live URL. General lesson: for any form that
+  redirects to a fresh page render on validation failure (as opposed to a
+  SPA that keeps the DOM and just shows an error), check whether the fields
+  survive the round trip --- a clean a11y sweep of the form's default state
+  says nothing about its rejected-submission state, since axe only ever sees
+  whatever URL you point it at.
+- Found via a **process-hygiene snag worth generalising**: after rebuilding
+  a manually-launched dev/test server, `kill %1` silently no-ops across
+  separate Bash tool calls in this harness, since each call is its own shell
+  and job-control tables (`%1`) don't carry over between them --- the old
+  server kept answering on the same port under the *old* build, giving a
+  false "the fix isn't working" signal for several minutes. Use `pgrep -af
+  <entry-point>` + `kill <pid>` to restart a background server across tool
+  calls, never `%N` job-control syntax.
 - **A third axe-invisible a11y gap: axe checks how an existing `aria-live`
   region is used, not whether a dynamically-updated one has an `aria-live`
   attribute at all.** On `comp4020-crit7-dachi`'s seventh run, a repeat
