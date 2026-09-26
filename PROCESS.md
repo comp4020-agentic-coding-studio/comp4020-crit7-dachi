@@ -94,6 +94,16 @@ the underlying response's `close` event unconditionally, which Node fires for
 any connection teardown, not just the graceful and forced-kill cases already
 tested live.
 
+A later run re-read every core file fresh (`db.ts`, the two API routes,
+`index.astro`) and ran a full a11y/keyboard/resize/reload/320px-reflow sweep
+against the live URL, including a complete keyboard-only submission
+end-to-end. Everything came back clean --- confirming, not discovering,
+which was itself the signal: seven consecutive sensor families (field/HTTP
+validation, SSE/deploy resilience, four axe-invisible a11y gaps, overlap
+symmetry, multi-tab broadcast, redundant entry, and now a fresh full read)
+had each gone dry. That's the point at which this repo's reflection got
+written, rather than deferred for another pass.
+
 ## Before you ship
 
 `pnpm check:evidence` verifies that this comment is gone, that your citations
