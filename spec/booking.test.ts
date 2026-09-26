@@ -20,6 +20,13 @@ const post = (path: string, body: URLSearchParams) =>
     redirect: "manual",
   });
 
+// A rejection redirect's query string carries more than error/roomId (see
+// the resubmitted-fields test below) — assert on the params that matter to
+// each test, not the whole string, so adding another resubmitted field
+// doesn't break every other rejection test.
+const redirectParams = (res: Response) =>
+  new URL(res.headers.get("location") ?? "", baseUrl).searchParams;
+
 const booking = (overrides: Record<string, string>) =>
   new URLSearchParams({
     roomId: "1",
@@ -96,7 +103,8 @@ describe("bookings", () => {
       booking({ pod: second, roomId: "3", startsAt: "2031-03-01T10:30", endsAt: "2031-03-01T11:30" }),
     );
     expect(secondRes.status).toBe(303);
-    expect(secondRes.headers.get("location")).toBe("/?error=conflict&roomId=3");
+    expect(redirectParams(secondRes).get("error")).toBe("conflict");
+    expect(redirectParams(secondRes).get("roomId")).toBe("3");
 
     const body = await (await fetch(baseUrl)).text();
     expect(body).toContain(first);
@@ -142,7 +150,8 @@ describe("bookings", () => {
       "/api/bookings",
       booking({ pod, roomId: "4", startsAt: "banana", endsAt: "zebra" }),
     );
-    expect(res.headers.get("location")).toBe("/?error=bad-format&roomId=4");
+    expect(redirectParams(res).get("error")).toBe("bad-format");
+    expect(redirectParams(res).get("roomId")).toBe("4");
 
     const body = await (await fetch(baseUrl)).text();
     expect(body).not.toContain(pod);
@@ -154,7 +163,8 @@ describe("bookings", () => {
     // with no edit or delete an oversized name would sit there forever.
     const pod = "x".repeat(81);
     const res = await post("/api/bookings", booking({ pod, roomId: "4" }));
-    expect(res.headers.get("location")).toBe("/?error=too-long&roomId=4");
+    expect(redirectParams(res).get("error")).toBe("too-long");
+    expect(redirectParams(res).get("roomId")).toBe("4");
 
     const body = await (await fetch(baseUrl)).text();
     expect(body).not.toContain(pod);
@@ -170,7 +180,8 @@ describe("bookings", () => {
       "/api/bookings",
       booking({ pod, roomId: "4", startsAt: "2031-02-30T09:00", endsAt: "2031-02-30T10:00" }),
     );
-    expect(res.headers.get("location")).toBe("/?error=bad-format&roomId=4");
+    expect(redirectParams(res).get("error")).toBe("bad-format");
+    expect(redirectParams(res).get("roomId")).toBe("4");
 
     const body = await (await fetch(baseUrl)).text();
     expect(body).not.toContain(pod);
@@ -182,7 +193,8 @@ describe("bookings", () => {
       "/api/bookings",
       booking({ pod, roomId: "999", startsAt: "2031-06-01T09:00", endsAt: "2031-06-01T10:00" }),
     );
-    expect(res.headers.get("location")).toBe("/?error=unknown-room&roomId=999");
+    expect(redirectParams(res).get("error")).toBe("unknown-room");
+    expect(redirectParams(res).get("roomId")).toBe("999");
 
     const body = await (await fetch(baseUrl)).text();
     expect(body).not.toContain(pod);
@@ -194,9 +206,43 @@ describe("bookings", () => {
       "/api/bookings",
       booking({ pod, roomId: "4", startsAt: "2031-04-01T11:00", endsAt: "2031-04-01T10:00" }),
     );
-    expect(res.headers.get("location")).toBe("/?error=bad-range&roomId=4");
+    expect(redirectParams(res).get("error")).toBe("bad-range");
+    expect(redirectParams(res).get("roomId")).toBe("4");
 
     const body = await (await fetch(baseUrl)).text();
     expect(body).not.toContain(pod);
+  });
+
+  it("refills the form with what was submitted after a rejection", async () => {
+    // WCAG 2.2 SC 3.3.7 (Redundant Entry): the server already has every
+    // field from a rejected submission, so the redirect carries them back
+    // rather than making someone retype the whole booking over one bad
+    // field (see withInput in api/bookings.ts). Room 3 (not the select's
+    // first option) checks the room is actually re-selected, not just
+    // defaulted; the ampersand/apostrophe check that the page escapes the
+    // resubmitted values rather than injecting them raw.
+    const pod = `Bravo & Co ${process.hrtime.bigint()}`;
+    const res = await post(
+      "/api/bookings",
+      booking({
+        pod,
+        tutor: "O'Carol",
+        roomId: "3",
+        startsAt: "2031-07-01T11:00",
+        endsAt: "2031-07-01T10:00", // ends before it starts: bad-range
+      }),
+    );
+    const params = redirectParams(res);
+    expect(params.get("error")).toBe("bad-range");
+    expect(params.get("roomId")).toBe("3");
+    expect(params.get("pod")).toBe(pod);
+    expect(params.get("tutor")).toBe("O'Carol");
+    expect(params.get("startsAt")).toBe("2031-07-01T11:00");
+    expect(params.get("endsAt")).toBe("2031-07-01T10:00");
+
+    const page = await (await fetch(new URL(res.headers.get("location") ?? "", baseUrl))).text();
+    expect(page).toContain(`value="${pod.replace("&", "&amp;")}"`);
+    expect(page).toContain('value="O\'Carol"');
+    expect(page).toContain('<option value="3" selected>');
   });
 });
