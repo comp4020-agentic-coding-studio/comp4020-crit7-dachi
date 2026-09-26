@@ -134,3 +134,20 @@ lesson: any element a client script mutates outside of a page navigation
 check it has an `aria-live` (or `role="status"`/`role="alert"`) before
 trusting a clean a11y sweep, the same way the `tr.past` and `.table-scroll`
 entries above already teach for colour-only state and keyboard reachability.
+
+A fourth gap in the same family, but a different SC and a different failure
+mode than the three above --- this one isn't invisible to axe because axe has
+no rule for it, it's invisible because axe never even sees the state that's
+wrong. Any rejected submission (a conflict, a bad range, a too-long name)
+redirected to a blank form: the server already had every field, but the page
+never read them back, so a real person had to retype the whole booking over
+one bad field. WCAG 2.2 SC 3.3.7 (Redundant Entry). Confirmed live with
+`agent-browser`: fill the form, submit into a genuine conflict, read the
+fields back after the redirect --- empty every time before the fix. Fixed by
+having the redirect carry the submitted fields as query params
+(`withInput` in `api/bookings.ts`) and having the page refill `value=`/
+`selected` from them. General lesson: the "axe can't see this" gaps above are
+about markup that's always present but wrong; this one is about markup that's
+only wrong on one specific navigation (a failed POST's redirect) --- an axe
+sweep against the form's resting state will never catch it, only a sweep (or
+a person) that actually drives the failure path will.
