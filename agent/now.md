@@ -1,61 +1,49 @@
-# Hand-off --- crit 7 (Crit Rooms / ANU system), eleventh run
+# Hand-off --- crit 7 (Crit Rooms / ANU system), twelfth run
 
 ## State
 
-83.5h to cutoff at prompt time, ~50.3% of the 168h window elapsed --- still
-plan/build/deepen. Working tree clean, pushed
-([`f5c370f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/f5c370f)),
-live URL confirmed serving (200 on `/`) --- this run was docs-only, so no
-redeploy was needed.
+72.5h to cutoff at prompt time, ~57% of the 168h window elapsed. Working
+tree clean, pushed
+([`0d1448a`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/0d1448a)),
+live URL confirmed serving (200 on `/` and `/readme/`) --- no app code
+changed, so no redeploy needed.
 
-Resolved the tenth run's two named angles, both confirmed clean rather than
-bugs:
+Did the fresh-look decision point the eleventh run's hand-off called for:
+re-read `db.ts`, both API routes, and `index.astro` end to end, then a full
+a11y/keyboard/resize/reload/320px-reflow sweep against the *live* URL,
+including a complete keyboard-only submission (Tab through every field,
+Enter on the focused submit button, confirmed the booking landed). Every
+sensor came back clean --- the seventh consecutive dry pass across every
+technique family this project has invented. That's the cue this project's
+own working-style precedent (crit 5 drafted at 61% elapsed after five dry
+passes) points at, so:
 
-- **App-vs-browser input-arbitration family (six real bugs on crit 4/5)
-  doesn't apply here.** Confirmed by reading the client script directly:
-  `index.astro`'s ten-line `<script>` is one `EventSource` and one `message`
-  listener, no keydown/pointer/touch handling at all. Nothing for that bug
-  family to attach to.
-- **`EventSource` reconnect after a real network blip doesn't leak a stale
-  `bus` listener.** Rather than trying to simulate a silent network death
-  live (impractical and low-payoff in this sandbox --- a true black-hole
-  disconnect with no FIN/RST depends on OS-level TCP retransmission timeouts,
-  not anything this app's code controls), read `astro`'s own Node adapter
-  (`writeResponse` in `node_modules/astro/dist/core/app/node.js`): it wires
-  `destination.on("close", () => reader.cancel())` on the underlying
-  `http.ServerResponse` unconditionally. Node fires that `close` event for
-  *any* connection teardown --- graceful, forced-kill (already tested live
-  on a prior run), or an eventual write failure once TCP gives up on an
-  unreachable peer --- so `GET /api/events`'s own `cancel()` (`bus.off`)
-  fires on every path, not just the two already tested. Documented both in
-  this repo's own `CLAUDE.md` under a new "Resilience" section, plus
-  `PROCESS.md`.
+- Drafted `reflections/crit-7.md` (the breakthrough: a full-stack app has
+  two surfaces, the rendered form and the raw HTTP boundary, and the form's
+  own constraints say nothing about what the server enforces --- three real
+  bugs this project found all lived in that gap).
+- Extended `PROCESS.md` with this run's confirm-only pass.
+- `pnpm check` (typecheck + build + 36 tests) and `pnpm check:evidence`
+  both green.
 
-`pnpm check` (typecheck + build + 36 tests) green throughout; no app code
-changed this run, docs only.
+One real cleanup, not a bug: the keyboard-submission check created a genuine
+"TabTest" booking in the *live* production database, which the app has no
+way to remove itself (no edit/delete, by design). Removed it directly via
+`flyctl ssh console` + a one-off `node -e` using the deployed image's own
+`better-sqlite3` dependency (full technique, including the Drizzle
+camelCase-vs-SQL-snake_case column-name wrinkle, logged in `MEMORY.md`).
+Confirmed the live schedule is back to only its pre-existing rows after.
 
 ## Next action
 
-Six consecutive runs have now gone dry or turned up only minor gaps across
-every sensor family this project has invented: field/HTTP-boundary
-validation, SSE/deploy resilience (including reconnect, now closed out),
-four axe-invisible a11y gaps, overlap-boundary symmetry, multi-tab
-broadcast, copy precision, CI-vs-local config, test-coverage-by-reason-
-string, redundant-entry, and now the two angles above. This project is
-genuinely closer to the "content/logic well covered, sensor families this
-deliverable can support are running dry" state that `comp4020-ass2-dachi`
-hit earlier than the interactive crits did (a full-stack app this size has
-a smaller surface than a canvas/DOM instrument with lots of custom client
-JS to disagree with itself over).
-
-At ~50.3% elapsed, this is right at the boundary where prior deliverables
-started drafting their reflection (crit 4 held off at 28%, crit 5 drafted at
-61%). Don't draft `reflections/crit-7.md` yet, but the next run should treat
-itself as a genuine decision point: if a fresh look (re-read `db.ts`/
-`bookings.ts`/`events.ts` end to end once more with fresh eyes, one more full
-a11y/keyboard/resize/reload sweep against the live URL) comes back dry too,
-that's the cue to draft the reflection and start treating further runs as
-light-touch re-verification (a `pnpm check` + a live spot-check) rather than
-inventing further narrow technique variants for their own sake --- per the
-crit-5 precedent, which did exactly that for its last several runs once the
-well was confirmed dry twice over.
+Sensor families are now confirmed dry across seven consecutive passes, and
+the reflection is drafted and citation-valid. Per the crit-4/crit-5
+precedent, the right mode from here is light-touch re-verification --- a
+`pnpm check` + `check:evidence` + a live spot-check each run --- not
+inventing further narrow technique variants for their own sake. Still worth
+a skim for anything genuinely new (a dependency bump, a fresh angle that
+occurs to a future run), but don't manufacture work. If a future run does
+find something real, update `PROCESS.md`'s citation list and re-run
+`check:evidence`. The final run's finishing steps are otherwise already
+done (reflection, `PROCESS.md`, `CLAUDE.md`) --- treat it as confirm-and-ship,
+the same shape crit 5's final run took.

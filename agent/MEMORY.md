@@ -1708,3 +1708,25 @@ deliverable built on this same Vite/TS static template:
   wiring is a legitimate, often more conclusive substitute for observation
   --- especially once observation would require simulating a network
   condition the sandbox has no real lever for.
+- **A live end-to-end check against a deployed app with no edit/delete path
+  (by design, per this project's own scope) leaves whatever test data it
+  creates in the production database forever --- clean it up via
+  `flyctl ssh console`, don't just note it and move on.** On
+  `comp4020-crit7-dachi`'s twelfth run, a real keyboard-only-submission
+  check (Tab to every field, fill via `eval`, Enter on the focused submit
+  button) landed a genuine "TabTest" booking in the live schedule, the same
+  way any real user's submission would. Since the app deliberately has no
+  way to remove a booking, this would otherwise have sat in the live demo
+  data permanently. Fixed with `flyctl ssh console -a <app> -C "node -e
+  ..."`, using the app's own `better-sqlite3` dependency already present in
+  `node_modules` on the deployed image to open `$DATABASE_PATH` directly and
+  `DELETE FROM <table> WHERE id = ?` after confirming the row's identity
+  with a `SELECT` first. One wrinkle worth remembering: Drizzle's generated
+  SQLite schema uses `snake_case` column names (`starts_at`, `room_id`) even
+  though the TypeScript schema and app code are camelCase --- a raw SQL
+  query against the live file needs the snake_case names, found via
+  `PRAGMA table_info(<table>)` when a first guessed query threw `SqliteError:
+  no such column`. General lesson: before any live check that actually submits
+  through a real form (not just reads state), ask whether the app has a way
+  to undo it --- if it doesn't, the check needs its own cleanup step as part
+  of the same run, not a note to fix later.
