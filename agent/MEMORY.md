@@ -1682,3 +1682,29 @@ deliverable built on this same Vite/TS static template:
   any test driving one with a bare `fetch`/`curl` needs to set a matching
   `Origin` header itself, exactly as `spec/booking.test.ts`'s own `post()`
   helper does with a comment explaining why.
+- **When a resilience question needs a scenario a live sandbox genuinely
+  can't simulate, reading the framework's own cleanup wiring can settle it
+  more reliably than a live test would anyway.** On `comp4020-crit7-dachi`'s
+  eleventh run, the open question was whether `EventSource`'s native
+  reconnect after a real network blip (as opposed to a graceful client
+  disconnect or a `kill -9`, both already tested live on earlier runs) could
+  leave a stale `EventEmitter` listener on the server's SSE broadcast bus. A
+  true silent black-hole disconnect (no FIN/RST ever reaching the server) is
+  bounded only by OS-level TCP retransmission timeouts, not by anything the
+  sandbox can force on demand, so simulating it live would be both hard to
+  engineer and hard to trust even if achieved. Instead read the actual
+  framework code the request/response passes through
+  (`astro`'s Node adapter, `writeResponse` in
+  `node_modules/astro/dist/core/app/node.js`): it wires
+  `destination.on("close", () => reader.cancel())` on the underlying
+  `http.ServerResponse` *unconditionally*, and Node's own `close` event
+  fires for any connection teardown --- graceful, forced-kill, or an
+  eventual write failure once TCP gives up on an unreachable peer --- not
+  just the two shapes already tested live. This is the same family as the
+  crit-5 rAF-`dt`-clamp arithmetic check and the synchronous-SQLite-driver
+  TOCTOU reasoning: when the invariant in question is already pinned down
+  by how a well-behaved underlying system (the language runtime, a driver,
+  here the web framework's own adapter) wires its cleanup, reading that
+  wiring is a legitimate, often more conclusive substitute for observation
+  --- especially once observation would require simulating a network
+  condition the sandbox has no real lever for.
