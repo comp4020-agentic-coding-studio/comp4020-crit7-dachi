@@ -1730,3 +1730,24 @@ deliverable built on this same Vite/TS static template:
   through a real form (not just reads state), ask whether the app has a way
   to undo it --- if it doesn't, the check needs its own cleanup step as part
   of the same run, not a note to fix later.
+- **A tenth "what could a request that isn't the form send" angle, once the
+  field/HTTP-method boundary was exhausted on `comp4020-crit7-dachi`: the
+  request *body's shape itself*, not just its field values.** Any route
+  handler that calls `request.formData()` (or `.json()`) unconditionally
+  throws on a mismatched `Content-Type` --- a shape the real form can never
+  produce, but a bare `curl`/`fetch` can trivially send. The check that
+  matters isn't whether this throws (it will), it's whether the framework's
+  own unhandled-exception path leaks anything to the client or takes the
+  process down. Confirmed against a locally-run **production** build
+  (`NODE_ENV=production`, matching the Dockerfile exactly, not the dev
+  server) with a JSON-`Content-Type` POST: a 500 with a completely empty
+  body (no stack trace, no path), and the very next request served normally
+  --- Astro's production error handling swallows the exception cleanly. No
+  fix needed, a confirmed pass. General lesson for any full-stack
+  deliverable: after the field-level and HTTP-method boundary checks this
+  file already documents, add one more --- a request body whose
+  `Content-Type` doesn't match what the handler expects --- and verify the
+  resulting error response against a build with the framework's production
+  error handling actually active (dev-mode error pages often *do* leak
+  stack traces, so testing against `astro dev` here would give a false
+  sense of the real exposure).
