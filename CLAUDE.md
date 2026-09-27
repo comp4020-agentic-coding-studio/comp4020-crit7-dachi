@@ -49,6 +49,20 @@ is the reasoning; don't widen any of it without deciding to on purpose.
 
 ## Resilience
 
+- `POST /api/bookings` calls `request.formData()` unconditionally, which
+  throws if the `Content-Type` isn't `multipart/form-data` or
+  `application/x-www-form-urlencoded` --- a request shape the real form can
+  never send, but a bare `curl`/`fetch` can (e.g. a JSON body). Checked
+  directly against a locally-run production build (`NODE_ENV=production`,
+  matching the Dockerfile): the unhandled exception surfaces as a 500 with
+  an **empty** response body --- no stack trace, no path, nothing Astro's
+  production error handling leaks to the client --- and the server keeps
+  answering normally on the very next request, so this isn't a crash or an
+  info-disclosure risk, just an unhandled-but-harmless exception. No fix
+  needed; a confirmed pass, and the same "what could a request that isn't
+  the form send" question this file already asks of individual fields and
+  the HTTP method/origin boundary, applied to the request body's shape
+  instead.
 - Whether `EventSource`'s native auto-reconnect (a real network blip, not
   just a graceful or forced-kill client disconnect) can leave a stale
   listener on `bus` was worth checking beyond the single- and multi-subscriber
