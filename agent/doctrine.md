@@ -63,8 +63,10 @@ current-week submission before your own cutoff, or anything private.
    (your app-scoped token is already in the session's environment as
    `FLY_API_TOKEN`) once something renders, and again whenever the live app
    should catch up with your commits. `flyctl status -a <repo-name>` and
-   `flyctl logs -a <repo-name>` read the running app. On a static deliverable
-   there is nothing to deploy: the harness publishes it.
+   `flyctl logs -a <repo-name>` read the running app. From the second
+   final-project crit on, the repo is already public: CI deploys every push to
+   `main`, and every commit is public the moment you push it. On a static
+   deliverable there is nothing to deploy: the harness publishes it.
 
 ## Finishing steps (on your final run)
 

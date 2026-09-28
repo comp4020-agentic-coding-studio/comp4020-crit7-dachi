@@ -1,51 +1,72 @@
-# Hand-off --- crit 7 (Crit Rooms / ANU system), fifteenth run
+# Hand-off --- crit 7 (Crit Rooms / ANU system), sixteenth run
 
 ## State
 
-48.5h to cutoff at prompt time, still >24h --- not the final run. Working
+41.5h to cutoff at prompt time, still >24h --- not the final run. Working
 tree was clean and pushed at
-[`6d5ad9a`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/6d5ad9a)
+[`392c21e`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/392c21e)
 before this run started.
 
-Fetched the course source (`crits/07-anu-system.json`) fresh: brief unchanged
-from what's already built.
+Fetched the course source fresh: brief unchanged. `pnpm check` and
+`check:evidence` were clean at the start, matching the prior ten consecutive
+dry runs --- but this run followed the prior hand-off's own suggested angle
+("malformed/oversized request bodies generally") rather than treating the
+well as dry, and it found a real bug, not another confirmed pass.
 
-`pnpm check` (typecheck, build, 36 tests), `pnpm check:evidence`, and a live
-spot-check (`flyctl status` --- machine `stopped` on normal autostop, `curl`
-on `/` and `/readme/` both 200) all clean, as in the prior nine consecutive
-dry runs.
+**The bug:** `@astrojs/node` defaults `bodySizeLimit` to 1GB; `astro.config.ts`
+never overrode it. The deployed Fly machine has 256MB of RAM (`fly.toml`),
+and a real booking POST is under 1KB even at the form's own 80-char field
+caps. Confirmed live against a local production build: baseline RSS ~245MB,
+a single 5MB oversized `pod` field pushed it to ~279MB (the raw value gets
+buffered, decoded, and --- for a rejected submission --- echoed whole into
+the redirect's query string by `withInput`). A 256MB machine has no defense
+against a POST far smaller than the 1GB default ever needed to trigger it.
 
-This run found one genuinely new (not previously checked) angle before
-confirming clean: whether `POST /api/bookings`'s unconditional
-`request.formData()` call, which throws on a non-form `Content-Type`, could
-crash the server or leak a stack trace via its 500. Checked against a
-locally-run **production** build (`NODE_ENV=production`, matching the
-Dockerfile) with a JSON-`Content-Type` POST --- empty 500 body, no leak, next
-request served normally. No fix needed, a confirmed pass. Logged in both this
-repo's `CLAUDE.md` (Resilience section) and the global `MEMORY.md`'s
-full-stack section, and committed
-([`a05050f`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/a05050f),
-pushed).
+**The fix:** `bodySizeLimit: 64 * 1024` in `astro.config.ts`'s node adapter
+options (64KB, generous over any real submission, far below any threat to
+the machine). Verified both directions locally and against the redeployed
+live app: an 80-char-capped legit booking still succeeds, a 100KB body gets
+a clean 500 (empty body, same harmless shape as the earlier malformed-
+Content-Type finding) with the server still answering the next request.
+Added a regression test in `spec/booking.test.ts`. Commits: `9f2f010` (fix +
+test), `bc52b3f` (this repo's `CLAUDE.md`), `18993f2` (`PROCESS.md`
+citation). Pushed and redeployed (`flyctl deploy`), confirmed live.
+
+One live-testing wrinkle, handled correctly: the first live verification
+POST silently hit a pre-existing conflict (same room/time as an old "Deploy
+Check Pod" test row from an earlier run) and inserted nothing --- looked
+like success (a followed 303 redirect reads as a 200 to a script that
+doesn't set `redirect: manual`) but wasn't actually proof of insertion.
+Re-ran against a genuinely free time slot to get a real assertion, then
+cleaned up the one row it did insert via `flyctl ssh console` (per the
+established practice: a live check that submits through the real form needs
+its own cleanup, since this app has no edit/delete). The old "Deploy Check
+Pod" row from a prior run was left alone --- not something this run
+introduced.
+
+Global `MEMORY.md`'s full-stack section already documents nine related
+findings for this project; this is the tenth, and the first to come from
+"check a framework default against the actual deployed machine's own
+resource limits" rather than the request-shape/method/origin/body-parsing
+angles the prior nine covered. Added to that section (see below).
 
 ## Next action
 
-Tenth consecutive dry pass overall, first new angle found in several runs.
-Keep the light-touch shape (`pnpm check` + `check:evidence` + live spot-check
-+ fresh course-source read) each run, but before falling back to a pure
-confirm-only pass, spend one cheap pass looking for an angle not yet in
-`CLAUDE.md`'s history --- this run's malformed-Content-Type check shows the
-well isn't fully dry yet, just thinning. Candidate angles not yet tried, if a
-future run wants a starting point rather than re-deriving from scratch:
-malformed/oversized request bodies generally (very large `pod`/`tutor` field
-sent as raw bytes rather than through the length check, to confirm no
-memory/DoS issue at the Node/Astro layer before the app's own 80-char check
-even runs), or whether the seeded room list (`rooms` table, presumably 4 rows)
-has any edge case around room count changing. Whenever the prompt calls a run
-"last": no finishing steps are outstanding (site renders, `PROCESS.md` and
-`reflections/crit-7.md` are both done, `CLAUDE.md` is current, everything's
-pushed and deployed) --- that run should be a confirm pass plus a final
-`flyctl deploy` only if commits have accumulated since the last deploy that
-touch runtime code (this run's commit is docs-only, no redeploy needed).
+Eleventh consecutive light-touch run should keep the same shape (`pnpm
+check` + `check:evidence` + live spot-check + fresh course-source read), but
+this run is proof the "what could a request that isn't the form send"
+question still has unmined variants once framed differently ("is this
+default safe *here*, not just in general"). One candidate not yet tried, if
+a future run wants a starting point: whether Fly's own proxy or Node's HTTP
+server enforces any timeout on a slow-drip request (a client that sends the
+64KB body limit's worth of bytes one byte at a time, holding a connection
+open) --- a slowloris-shaped question distinct from the raw-size one just
+fixed. Whenever the prompt calls a run "last": no finishing steps are
+outstanding (site renders, `PROCESS.md` and `reflections/crit-7.md` are both
+done and PROCESS.md now cites twelve commits, `CLAUDE.md` is current,
+everything's pushed and deployed at the commit just shipped) --- that run
+should be a confirm pass only, no redeploy needed unless a further commit
+lands first.
 
 ## Before you ship
 

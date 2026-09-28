@@ -1751,3 +1751,30 @@ deliverable built on this same Vite/TS static template:
   error handling actually active (dev-mode error pages often *do* leak
   stack traces, so testing against `astro dev` here would give a false
   sense of the real exposure).
+- **An eleventh angle in the same family, and the first on this project to
+  turn up a real bug rather than a confirmed pass: whether a framework's
+  default resource limit is safe on the actual deployed machine, not just
+  reasonable in the abstract.** `@astrojs/node` defaults `bodySizeLimit` to
+  1GB; `comp4020-crit7-dachi`'s `astro.config.ts` never overrode it, and the
+  deployed Fly machine has only 256MB of RAM (`fly.toml`) --- a real booking
+  POST is under 1KB even at the form's own field caps, so nothing stood
+  between an oversized POST and the machine's actual ceiling. Confirmed live
+  against a locally-run production build: baseline RSS ~245MB, a single 5MB
+  oversized form field pushed it to ~279MB, because the raw value gets
+  copied several times over (buffered by the streaming body-size guard,
+  decoded into the parsed form, and --- for a rejected submission --- echoed
+  whole into the redirect's query string by this app's own
+  resubmit-fields-on-rejection fix). A 256MB machine has no defense against
+  a POST an order of magnitude below the 1GB default's own threshold. Fixed
+  with `bodySizeLimit: 64 * 1024` (64KB) in the node adapter's options ---
+  generous over any real submission, far below any threat to the machine ---
+  verified both directions (a form-capped-length booking still succeeds, an
+  oversized body gets a clean empty 500 with the server still answering the
+  next request) both locally and against the redeployed live app. General
+  lesson: a framework default that reads as reasonable in isolation (1GB is
+  a normal upload cap for a general-purpose app) can be wildly unsafe on a
+  specific deployment's actual resource envelope --- whenever a project pins
+  a small VM/container memory size (as this course's Fly deploys do,
+  `256mb`), check every framework-level size/rate/concurrency default
+  against that number explicitly, rather than trusting an unconfigured
+  default to already be sane.
