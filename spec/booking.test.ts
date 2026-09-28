@@ -245,4 +245,19 @@ describe("bookings", () => {
     expect(page).toContain('value="O\'Carol"');
     expect(page).toContain('<option value="3" selected>');
   });
+
+  it("rejects a request body far larger than any real booking could be", async () => {
+    // The form can only ever send a few short fields (well under 1KB even
+    // at the 80-char pod/tutor cap), but a client that isn't the form could
+    // send anything — and the deployed machine only has 256MB (fly.toml),
+    // well below @astrojs/node's 1GB default body limit. astro.config.ts
+    // sets bodySizeLimit to 64KB so an oversized POST is rejected instead
+    // of buffered; this asserts the rejection is clean (no crash) and the
+    // server keeps serving requests afterward.
+    const res = await post("/api/bookings", booking({ pod: "z".repeat(100_000), roomId: "4" }));
+    expect(res.status).toBe(500);
+
+    const stillUp = await fetch(baseUrl);
+    expect(stillUp.status).toBe(200);
+  });
 });
