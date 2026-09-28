@@ -63,6 +63,29 @@ is the reasoning; don't widen any of it without deciding to on purpose.
   the form send" question this file already asks of individual fields and
   the HTTP method/origin boundary, applied to the request body's shape
   instead.
+- Unlike the malformed-`Content-Type` case above, this one was a real bug,
+  not a confirmed pass: `@astrojs/node` defaults `bodySizeLimit` to 1GB, and
+  `astro.config.ts` didn't override it. The deployed machine has 256MB of
+  RAM (`fly.toml`), and a real booking POST is a handful of short fields
+  --- well under 1KB even at the 80-char pod/tutor cap in `src/lib/db.ts`
+  --- so nothing stood between an oversized POST and the machine's actual
+  memory ceiling. Confirmed live against a local production build: baseline
+  RSS ~245MB, a single 5MB oversized `pod` field pushed it to ~279MB (the
+  raw body gets copied several times over — buffered, decoded, and, for a
+  rejected submission, echoed whole into the redirect's query string by
+  `withInput` in `api/bookings.ts`) --- on a 256MB machine, a POST far
+  smaller than the 1GB default limit would OOM it. Fixed by setting
+  `bodySizeLimit: 64 * 1024` in `astro.config.ts`'s node adapter options: 64KB
+  is generous headroom over any legitimate submission and far below anything
+  that could threaten the machine. Verified both directions: a booking at the
+  80-char field cap still succeeds, and a 100KB body gets a clean 500 (empty
+  body, same harmless shape as the content-type case) with the server still
+  answering the very next request. Regression test in
+  `spec/booking.test.ts` ("rejects a request body far larger than any real
+  booking could be"). General lesson: a framework's default resource limit
+  is only safe if it's checked against the *actual* deployed machine's
+  resources, not assumed --- a 1GB body limit reads as reasonable in the
+  abstract and is wildly unsafe on a 256MB box.
 - Whether `EventSource`'s native auto-reconnect (a real network blip, not
   just a graceful or forced-kill client disconnect) can leave a stale
   listener on `bus` was worth checking beyond the single- and multi-subscriber
