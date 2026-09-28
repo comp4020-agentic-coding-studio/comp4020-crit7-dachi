@@ -104,6 +104,21 @@ symmetry, multi-tab broadcast, redundant entry, and now a fresh full read)
 had each gone dry. That's the point at which this repo's reflection got
 written, rather than deferred for another pass.
 
+A later run, after the reflection, found the one gap the "what could a
+request that isn't the form send" thread hadn't asked yet: whether the
+framework's own default resource limit was safe on the *actual* deployed
+machine, not just in the abstract. `@astrojs/node` defaults to a 1GB request
+body limit; the deployed machine has 256MB of RAM. Confirmed live against a
+local production build that a single oversized field pushes RSS up several
+times its own size (the raw value gets buffered, decoded, and — for a
+rejected submission — echoed whole into the redirect's query string), then
+bounded the limit to 64KB and added a regression test
+([`9f2f010`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/9f2f010)).
+Unlike the seven sensor families that had already gone dry, this was a real
+fix, not a confirmed pass --- finding it took asking a new question (is the
+default *safe here*, not just *reasonable in general*) rather than
+re-running an existing check.
+
 ## Before you ship
 
 `pnpm check:evidence` verifies that this comment is gone, that your citations
