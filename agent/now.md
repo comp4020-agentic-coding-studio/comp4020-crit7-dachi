@@ -1,72 +1,63 @@
-# Hand-off --- crit 7 (Crit Rooms / ANU system), sixteenth run
+# Hand-off --- crit 7 (Crit Rooms / ANU system), final run (seventeenth)
 
 ## State
 
-41.5h to cutoff at prompt time, still >24h --- not the final run. Working
-tree was clean and pushed at
-[`392c21e`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/392c21e)
-before this run started.
+35.5h to cutoff at prompt time; the prompt named this the last run for this
+deliverable. Working tree was clean and pushed at
+[`900967c`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit7-dachi/commit/900967c)
+before this run started, matching the deployed live app (Fly release v10,
+same image built from `9f2f010`'s body-size-limit fix).
 
-Fetched the course source fresh: brief unchanged. `pnpm check` and
-`check:evidence` were clean at the start, matching the prior ten consecutive
-dry runs --- but this run followed the prior hand-off's own suggested angle
-("malformed/oversized request bodies generally") rather than treating the
-well as dry, and it found a real bug, not another confirmed pass.
+Fetched the course source fresh: brief unchanged (`draft: true`, spec and
+body identical to every prior read). Ran the full finishing-steps checklist
+per doctrine rather than inventing a new sensor, since the prior run's
+hand-off had already confirmed no finishing steps were outstanding:
 
-**The bug:** `@astrojs/node` defaults `bodySizeLimit` to 1GB; `astro.config.ts`
-never overrode it. The deployed Fly machine has 256MB of RAM (`fly.toml`),
-and a real booking POST is under 1KB even at the form's own 80-char field
-caps. Confirmed live against a local production build: baseline RSS ~245MB,
-a single 5MB oversized `pod` field pushed it to ~279MB (the raw value gets
-buffered, decoded, and --- for a rejected submission --- echoed whole into
-the redirect's query string by `withInput`). A 256MB machine has no defense
-against a POST far smaller than the 1GB default ever needed to trigger it.
+- `pnpm check` (typecheck + astro check + build + vitest): clean, 37/37
+  tests passing, 0 type errors.
+- `pnpm check:evidence`: both citations valid --- `reflections/crit-7.md`
+  present, `PROCESS.md`'s 12 cited commits all resolve.
+- `flyctl status`/`flyctl releases`: live app on release v10, matching
+  local `HEAD`'s deploy history exactly --- no drift between what's
+  committed and what's served.
+- Live URL check: `https://comp4020-crit7-dachi.fly.dev/` returns 200,
+  correct title. Real-browser walkthrough (`agent-browser`) of both pages
+  (`/` and `/readme/`, the site's only two links) --- both load clean, no
+  console errors, `document.title` correct on each.
 
-**The fix:** `bodySizeLimit: 64 * 1024` in `astro.config.ts`'s node adapter
-options (64KB, generous over any real submission, far below any threat to
-the machine). Verified both directions locally and against the redeployed
-live app: an 80-char-capped legit booking still succeeds, a 100KB body gets
-a clean 500 (empty body, same harmless shape as the earlier malformed-
-Content-Type finding) with the server still answering the next request.
-Added a regression test in `spec/booking.test.ts`. Commits: `9f2f010` (fix +
-test), `bc52b3f` (this repo's `CLAUDE.md`), `18993f2` (`PROCESS.md`
-citation). Pushed and redeployed (`flyctl deploy`), confirmed live.
-
-One live-testing wrinkle, handled correctly: the first live verification
-POST silently hit a pre-existing conflict (same room/time as an old "Deploy
-Check Pod" test row from an earlier run) and inserted nothing --- looked
-like success (a followed 303 redirect reads as a 200 to a script that
-doesn't set `redirect: manual`) but wasn't actually proof of insertion.
-Re-ran against a genuinely free time slot to get a real assertion, then
-cleaned up the one row it did insert via `flyctl ssh console` (per the
-established practice: a live check that submits through the real form needs
-its own cleanup, since this app has no edit/delete). The old "Deploy Check
-Pod" row from a prior run was left alone --- not something this run
-introduced.
-
-Global `MEMORY.md`'s full-stack section already documents nine related
-findings for this project; this is the tenth, and the first to come from
-"check a framework default against the actual deployed machine's own
-resource limits" rather than the request-shape/method/origin/body-parsing
-angles the prior nine covered. Added to that section (see below).
+No new bug found, no fix needed, no new commit --- this run's job was
+verification, and it confirmed the deliverable is exactly as done as the
+sixteenth run's hand-off said it was. `agent/` untouched (harness-owned, per
+doctrine and the two near-misses already logged in `MEMORY.md`).
 
 ## Next action
 
-Eleventh consecutive light-touch run should keep the same shape (`pnpm
-check` + `check:evidence` + live spot-check + fresh course-source read), but
-this run is proof the "what could a request that isn't the form send"
-question still has unmined variants once framed differently ("is this
-default safe *here*, not just in general"). One candidate not yet tried, if
-a future run wants a starting point: whether Fly's own proxy or Node's HTTP
-server enforces any timeout on a slow-drip request (a client that sends the
-64KB body limit's worth of bytes one byte at a time, holding a connection
-open) --- a slowloris-shaped question distinct from the raw-size one just
-fixed. Whenever the prompt calls a run "last": no finishing steps are
-outstanding (site renders, `PROCESS.md` and `reflections/crit-7.md` are both
-done and PROCESS.md now cites twelve commits, `CLAUDE.md` is current,
-everything's pushed and deployed at the commit just shipped) --- that run
-should be a confirm pass only, no redeploy needed unless a further commit
-lands first.
+None --- this deliverable is finished. `comp4020-crit7-dachi` closes out at
+17 runs total: eleven real bugs/gaps found and fixed across the boundary-
+validation family (timestamp shape, pod/tutor length, calendar validity,
+unknown-room test gap), the resource-limit family (body size vs. the 256MB
+machine), and the axe-invisible a11y family (use-of-color, keyboard-
+unreachable scroll region, missing aria-live, redundant-entry-on-rejection)
+--- plus several confirmed-clean passes (CSRF/origin boundary, SSE fan-out
+to multiple subscribers, SSE-reconnect cleanup via the adapter's own close
+wiring, TOCTOU concurrency via the synchronous SQLite driver, malformed
+Content-Type handling). `PROCESS.md` and `reflections/crit-7.md` are both
+complete and cited; nothing further to write.
+
+A third calibration point alongside Aurora Keys and Swerve, but a different
+shape from both: this was the first full-stack deliverable, and the
+dominant bug family (boundary/input validation at the HTTP layer, framework
+resource defaults) was almost entirely new relative to the two static
+prototypes' dominant families (app-vs-browser input arbitration,
+multi-writer shared state) --- confirming the working hypothesis that a
+deliverable's tech stack, more than raw hours invested, determines which
+sensor families are worth inventing first. Worth defaulting future
+full-stack deliverables straight to "what could a request that isn't the
+form send" and "is this framework default safe on the actual deployed
+machine" before reaching for the static-prototype-honed browser-automation
+techniques, the same way the content-heavy assignment 2 entry already
+recommends raw-content-reads over browser automation for that different
+shape of deliverable.
 
 ## Before you ship
 

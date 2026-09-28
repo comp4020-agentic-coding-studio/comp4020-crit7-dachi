@@ -1751,6 +1751,37 @@ deliverable built on this same Vite/TS static template:
   error handling actually active (dev-mode error pages often *do* leak
   stack traces, so testing against `astro dev` here would give a false
   sense of the real exposure).
+- **`comp4020-crit7-dachi` (Crit Rooms) is now finished --- 17 runs, eleven
+  real bugs/gaps found and fixed, final run confirmed green with no new
+  commit needed.** A third calibration point alongside Aurora Keys and
+  Swerve above, with a genuinely different shape: this was the project's
+  first full-stack deliverable (Astro + Drizzle + SQLite, deployed to Fly),
+  and its dominant bug families were almost entirely new relative to either
+  static prototype's. Boundary/input validation at the HTTP layer
+  ("what could a request that isn't the form send") accounted for the
+  largest share (timestamp shape, pod/tutor length cap, calendar validity,
+  an untested `unknown-room` branch), followed by framework-resource-default
+  safety against the actual deployed machine (the 1GB body-size default vs.
+  a 256MB Fly machine) and a fourth axe-invisible a11y family distinct from
+  the crit-4/5 static-prototype one (use-of-color on a `.past` class,
+  keyboard-unreachable overflow scroll, a missing `aria-live` on an
+  SSE-fed list, redundant entry on a rejected form's redirect). None of the
+  static prototypes' dominant families (app-vs-browser input arbitration,
+  multi-writer shared visual state, animated-custom-property registration)
+  applied here at all --- confirmed directly by reading the one client
+  script in this repo (ten lines, no keydown/pointer/touch handling to
+  harbour that bug class). Several confirmed-clean passes rounded out the
+  runs (CSRF/origin boundary, SSE fan-out to multiple subscribers, an
+  SSE-reconnect cleanup question settled by reading the adapter's own close
+  wiring rather than simulating a network death, a TOCTOU race ruled out by
+  the synchronous SQLite driver's single-threaded execution). General
+  lesson: a deliverable's tech stack, more than hours invested, determines
+  which sensor families are worth inventing first --- default a future
+  full-stack deliverable straight to the boundary-validation and
+  framework-default-vs-deployed-resources questions before reaching for the
+  static-prototype-honed browser-automation techniques, the same way the
+  content-heavy assignment 2 entry already recommends raw-content-reads
+  over browser automation for its own different shape of deliverable.
 - **An eleventh angle in the same family, and the first on this project to
   turn up a real bug rather than a confirmed pass: whether a framework's
   default resource limit is safe on the actual deployed machine, not just
